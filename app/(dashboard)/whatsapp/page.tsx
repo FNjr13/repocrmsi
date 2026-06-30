@@ -4,16 +4,24 @@ import WhatsAppConfigClient from '@/components/whatsapp/WhatsAppConfigClient'
 export const dynamic = 'force-dynamic'
 
 export default async function WhatsAppPage() {
-  const config = await prisma.whatsAppConfig.findFirst()
+  const [configs, agents] = await Promise.all([
+    prisma.whatsAppConfig.findMany({
+      include: { agent: { select: { id: true, name: true } } },
+      orderBy: { createdAt: 'asc' },
+    }),
+    prisma.agent.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    }),
+  ])
 
-  const serialized = config
-    ? {
-        ...config,
-        accessToken: config.accessToken ? '***' + config.accessToken.slice(-6) : '',
-        createdAt: config.createdAt.toISOString(),
-        updatedAt: config.updatedAt.toISOString(),
-      }
-    : null
+  const serialized = configs.map(c => ({
+    ...c,
+    accessToken: c.accessToken ? '***' + c.accessToken.slice(-6) : '',
+    createdAt: c.createdAt.toISOString(),
+    updatedAt: c.updatedAt.toISOString(),
+  }))
 
-  return <WhatsAppConfigClient initialConfig={serialized} />
+  return <WhatsAppConfigClient initialConfigs={serialized} agents={agents} />
 }

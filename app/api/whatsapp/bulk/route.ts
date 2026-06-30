@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { getSession } from '@/lib/session'
+import { resolveWhatsAppConfig } from '@/lib/whatsapp'
 
 export async function POST(req: NextRequest) {
   const { leadIds, template } = await req.json() as {
@@ -11,19 +13,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'leadIds and template required' }, { status: 400 })
   }
 
-  const config = await prisma.whatsAppConfig.findFirst({ where: { isActive: true } })
-  if (!config) {
-    return NextResponse.json({ error: 'WhatsApp not configured' }, { status: 503 })
-  }
+  const session = await getSession()
 
   const leads = await prisma.lead.findMany({
     where: { id: { in: leadIds } },
-    select: { id: true, firstName: true, lastName: true, phone: true },
+    select: { id: true, firstName: true, lastName: true, phone: true, agentId: true },
   })
 
   const results: { leadId: string; name: string; status: string }[] = []
 
   for (const lead of leads) {
+    const config = await resolveWhatsAppConfig(session?.agentId, lead.agentId)
+    if (!config) {
+      results.push({ leadId: lead.id, name: `${lead.firstName} ${lead.lastName}`, status: 'NOT_CONFIGURED' })
+      continue
+    }
+
     const phone = lead.phone.replace(/[\s\-()]/g, '').replace(/^00/, '+').replace(/^(?!\+)/, '+')
 
     // Replace template variables
@@ -54,6 +59,7 @@ export async function POST(req: NextRequest) {
       )
       const waData = await waRes.json() as { messages?: Array<{ id: string }> }
       waMsgId = waData.messages?.[0]?.id ?? null
+      if (!waRes.ok) status = 'FAILED'
     } catch {
       status = 'FAILED'
     }
@@ -61,6 +67,7 @@ export async function POST(req: NextRequest) {
     await prisma.whatsAppMessage.create({
       data: {
         leadId: lead.id,
+        agentId: config.agentId,
         direction: 'OUTBOUND',
         content: message,
         type: 'text',
@@ -81,7 +88,7 @@ export async function POST(req: NextRequest) {
   }
 
   const sent = results.filter(r => r.status === 'SENT').length
-  const failed = results.filter(r => r.status === 'FAILED').length
+  const failed = results.filter(r => r.status !== 'SENT').length
 
   return NextResponse.json({ ok: true, sent, failed, results })
 }

@@ -44,7 +44,7 @@ export default function WhatsAppChat({ leadId, leadName }: { leadId: string; lea
 
   useEffect(() => {
     // Check if WhatsApp is configured
-    fetch('/api/whatsapp/config').then(r => r.json()).then((cfg: null | { id: string }) => {
+    fetch('/api/whatsapp/config?mine=1').then(r => r.json()).then((cfg: null | { id: string }) => {
       setConfigured(!!cfg)
     }).catch(() => setConfigured(false))
 

@@ -1,53 +1,82 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { getSession } from '@/lib/session'
 
-export async function GET() {
-  const config = await prisma.whatsAppConfig.findFirst()
-  if (!config) return NextResponse.json(null)
+function mask(config: { accessToken: string }) {
+  return { ...config, accessToken: config.accessToken ? '***' + config.accessToken.slice(-6) : '' }
+}
 
-  // Mask access token
-  return NextResponse.json({
-    ...config,
-    accessToken: config.accessToken ? '***' + config.accessToken.slice(-6) : '',
+// GET: lista todas las líneas (con el nombre de la asesora asignada), o
+// si se pasa ?mine=1, resuelve la línea de la sesión actual (la suya propia
+// si tiene una conectada, si no la línea general compartida).
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url)
+
+  if (searchParams.get('mine') === '1') {
+    const session = await getSession()
+    const config = session?.agentId
+      ? await prisma.whatsAppConfig.findFirst({
+          where: { OR: [{ agentId: session.agentId }, { agentId: null }], isActive: true },
+          orderBy: { agentId: 'desc' }, // prioriza la propia (no-null) sobre la general
+        })
+      : await prisma.whatsAppConfig.findFirst({ where: { agentId: null, isActive: true } })
+    return NextResponse.json(config ? mask(config) : null)
+  }
+
+  const configs = await prisma.whatsAppConfig.findMany({
+    include: { agent: { select: { id: true, name: true } } },
+    orderBy: { createdAt: 'asc' },
   })
+  return NextResponse.json(configs.map(mask))
 }
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const { phoneNumberId, wabaId, accessToken, verifyToken, phoneNumber, displayName } = body
+  const { agentId, phoneNumberId, wabaId, accessToken, verifyToken, phoneNumber, displayName } = body
 
-  const existing = await prisma.whatsAppConfig.findFirst()
+  if (!phoneNumberId || !wabaId || !accessToken) {
+    return NextResponse.json({ error: 'phoneNumberId, wabaId y accessToken son requeridos' }, { status: 400 })
+  }
 
-  if (existing) {
-    const updated = await prisma.whatsAppConfig.update({
-      where: { id: existing.id },
+  const normalizedAgentId = agentId || null
+
+  try {
+    const config = await prisma.whatsAppConfig.create({
       data: {
+        agentId: normalizedAgentId,
         phoneNumberId,
         wabaId,
-        accessToken: accessToken.startsWith('***') ? existing.accessToken : accessToken,
-        verifyToken: verifyToken || existing.verifyToken,
-        phoneNumber,
-        displayName,
+        accessToken,
+        verifyToken: verifyToken || 'wh_verify_token',
+        phoneNumber: phoneNumber || null,
+        displayName: displayName || null,
         isActive: true,
       },
     })
-    return NextResponse.json({ ...updated, accessToken: '***' + updated.accessToken.slice(-6) })
+    return NextResponse.json(mask(config))
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+      return NextResponse.json({ error: 'Ese Phone Number ID ya está conectado, o esa asesora ya tiene una línea asignada' }, { status: 409 })
+    }
+    console.error('Error creating WhatsApp config:', error)
+    return NextResponse.json({ error: 'Error al guardar la configuración' }, { status: 500 })
   }
-
-  const config = await prisma.whatsAppConfig.create({
-    data: { phoneNumberId, wabaId, accessToken, verifyToken: verifyToken || 'wh_verify_token', phoneNumber, displayName, isActive: true },
-  })
-  return NextResponse.json({ ...config, accessToken: '***' + config.accessToken.slice(-6) })
 }
 
 export async function PATCH(req: NextRequest) {
   const body = await req.json()
-  const existing = await prisma.whatsAppConfig.findFirst()
-  if (!existing) return NextResponse.json({ error: 'No config found' }, { status: 404 })
+  const { id, ...data } = body
+  if (!id) return NextResponse.json({ error: 'id es requerido' }, { status: 400 })
 
-  const updated = await prisma.whatsAppConfig.update({
-    where: { id: existing.id },
-    data: body,
-  })
-  return NextResponse.json({ ...updated, accessToken: '***' + updated.accessToken.slice(-6) })
+  if (data.accessToken?.startsWith('***')) delete data.accessToken
+
+  const updated = await prisma.whatsAppConfig.update({ where: { id }, data })
+  return NextResponse.json(mask(updated))
+}
+
+export async function DELETE(req: NextRequest) {
+  const { id } = await req.json()
+  if (!id) return NextResponse.json({ error: 'id es requerido' }, { status: 400 })
+  await prisma.whatsAppConfig.delete({ where: { id } })
+  return NextResponse.json({ ok: true })
 }

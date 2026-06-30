@@ -99,9 +99,11 @@ model Agent {
   passwordHash String? // null = todavía no tiene acceso (sin contraseña asignada)
   createdAt    DateTime @default(now())
 
-  leads        Lead[]
-  events       CalendarEvent[]
-  reservations Reservation[]
+  leads            Lead[]
+  events           CalendarEvent[]
+  reservations     Reservation[]
+  whatsappConfig   WhatsAppConfig?
+  whatsappMessages WhatsAppMessage[]
 }
 
 model CalendarEvent {
@@ -160,8 +162,12 @@ model Lead {
 }
 
 // ─── WhatsApp Business API ────────────────────────────────────────────────────
+// Cada asesora puede tener su propia línea oficial de WhatsApp Business
+// conectada (agentId apunta a esa asesora). agentId = null es la línea
+// general/compartida que se usa como respaldo si una asesora no tiene la suya.
 model WhatsAppConfig {
   id            String   @id @default(cuid())
+  agentId       String?  @unique
   phoneNumberId String   @unique
   wabaId        String
   accessToken   String
@@ -171,11 +177,14 @@ model WhatsAppConfig {
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  agent Agent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
 }
 
 model WhatsAppMessage {
   id        String   @id @default(cuid())
   leadId    String
+  agentId   String?  // qué asesora envió/recibió este mensaje (línea usada)
   direction String   // INBOUND, OUTBOUND
   content   String
   type      String   @default("text")
@@ -184,7 +193,8 @@ model WhatsAppMessage {
   waMsgId   String?  @unique
   createdAt DateTime @default(now())
 
-  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  lead  Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  agent Agent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
 }
 
 // ─── Formularios Públicos ─────────────────────────────────────────────────────

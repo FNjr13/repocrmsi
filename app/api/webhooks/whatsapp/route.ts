@@ -8,8 +8,12 @@ export async function GET(req: NextRequest) {
   const token = searchParams.get('hub.verify_token')
   const challenge = searchParams.get('hub.challenge')
 
-  const config = await prisma.whatsAppConfig.findFirst()
-  if (mode === 'subscribe' && token === (config?.verifyToken ?? 'wh_verify_token')) {
+  // El verify token es a nivel de App de Meta (un solo webhook para todas las
+  // líneas), así que basta con que coincida con cualquiera de las configuradas.
+  const configs = await prisma.whatsAppConfig.findMany({ select: { verifyToken: true } })
+  const validTokens = new Set([...configs.map(c => c.verifyToken), 'wh_verify_token'])
+
+  if (mode === 'subscribe' && token && validTokens.has(token)) {
     return new NextResponse(challenge, { status: 200 })
   }
   return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -22,6 +26,7 @@ export async function POST(req: NextRequest) {
     entry?: Array<{
       changes?: Array<{
         value?: {
+          metadata?: { phone_number_id?: string }
           messages?: Array<{
             id: string
             from: string
@@ -42,6 +47,11 @@ export async function POST(req: NextRequest) {
   for (const entry of entries) {
     const changes = entry.changes ?? []
     for (const change of changes) {
+      const phoneNumberId = change.value?.metadata?.phone_number_id
+      const receivingConfig = phoneNumberId
+        ? await prisma.whatsAppConfig.findUnique({ where: { phoneNumberId } })
+        : null
+
       const messages = change.value?.messages ?? []
       for (const msg of messages) {
         const fromPhone = msg.from // e.g. "50760001234"
@@ -67,6 +77,7 @@ export async function POST(req: NextRequest) {
         await prisma.whatsAppMessage.create({
           data: {
             leadId: lead.id,
+            agentId: receivingConfig?.agentId ?? null,
             direction: 'INBOUND',
             content,
             type: msg.type,
