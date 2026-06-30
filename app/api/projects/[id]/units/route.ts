@@ -1,6 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 
+async function recalcProjectCounts(projectId: string) {
+  const counts = await prisma.projectUnit.groupBy({
+    by: ['status'],
+    where: { projectId },
+    _count: { status: true },
+  })
+  const sold = counts.find(c => c.status === 'VENDIDO')?._count.status ?? 0
+  const reserved = counts.find(c => c.status === 'RESERVADO')?._count.status ?? 0
+  const available = counts.find(c => c.status === 'DISPONIBLE')?._count.status ?? 0
+  const unavailable = counts.find(c => c.status === 'NO_DISPONIBLE')?._count.status ?? 0
+  const total = sold + reserved + available + unavailable
+
+  await prisma.project.update({
+    where: { id: projectId },
+    data: { totalUnits: total, soldUnits: sold, reservedUnits: reserved, availableUnits: available },
+  })
+}
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -33,37 +51,37 @@ export async function POST(
     },
   })
 
-  // Update project unit counts
-  const counts = await prisma.projectUnit.groupBy({
-    by: ['status'],
-    where: { projectId: id },
-    _count: { status: true },
-  })
-  const sold = counts.find(c => c.status === 'VENDIDO')?._count.status ?? 0
-  const reserved = counts.find(c => c.status === 'RESERVADO')?._count.status ?? 0
-  const available = counts.find(c => c.status === 'DISPONIBLE')?._count.status ?? 0
-  const total = sold + reserved + available + (counts.find(c => c.status === 'NO_DISPONIBLE')?._count.status ?? 0)
-
-  await prisma.project.update({
-    where: { id },
-    data: { totalUnits: total, soldUnits: sold, reservedUnits: reserved, availableUnits: available },
-  })
+  await recalcProjectCounts(id)
 
   return NextResponse.json(unit)
 }
 
-export async function PATCH(req: NextRequest) {
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
   const body = await req.json()
   const { unitId, ...data } = body
   const unit = await prisma.projectUnit.update({
     where: { id: unitId },
     data,
   })
+
+  await recalcProjectCounts(id)
+
   return NextResponse.json(unit)
 }
 
-export async function DELETE(req: NextRequest) {
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
   const { unitId } = await req.json()
   await prisma.projectUnit.delete({ where: { id: unitId } })
+
+  await recalcProjectCounts(id)
+
   return NextResponse.json({ ok: true })
 }

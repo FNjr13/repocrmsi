@@ -4,6 +4,14 @@ import Link from 'next/link'
 import { STATUS_CONFIG, PROJECT_TYPE_CONFIG, STAGE_CONFIG, SOURCE_CONFIG, formatDate, formatPrice } from '@/lib/utils'
 import BrokersSection from '@/components/projects/BrokersSection'
 import MetasSection from '@/components/projects/MetasSection'
+import UnitsSection from '@/components/projects/UnitsSection'
+
+const UNIT_LABEL_BY_TYPE: Record<string, string> = {
+  CASAS: 'Lote',
+  DEPARTAMENTOS: 'Unidad',
+  OFICINAS: 'Oficina',
+  MIXTO: 'Unidad',
+}
 
 async function getProject(id: string) {
   return prisma.project.findUnique({
@@ -193,6 +201,11 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Unidades / Lotes */}
+        <div className="mt-6">
+          <UnitsSection projectId={project.id} unitLabel={UNIT_LABEL_BY_TYPE[project.type] || 'Unidad'} />
         </div>
 
         {/* Brokers externos */}
