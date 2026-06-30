@@ -1,0 +1,443 @@
+// This is your Prisma schema file
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Project {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  location        String
+  type            String   // DEPARTAMENTOS, CASAS, OFICINAS, MIXTO
+  totalUnits      Int
+  availableUnits  Int
+  reservedUnits   Int
+  soldUnits       Int
+  priceMin        Float
+  priceMax        Float
+  currency        String   @default("USD") // USD, UF, CLP, EUR
+  startDate       DateTime
+  deliveryDate    DateTime?
+  status          String   @default("ACTIVO") // ACTIVO, EN_CONSTRUCCION, ENTREGADO
+  progress        Int      @default(0) // 0-100
+  imageUrl        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  leads        Lead[]
+  campaigns    Campaign[]
+  brokers      ExternalBroker[]
+  events       CalendarEvent[]
+  reservations Reservation[]
+  units        ProjectUnit[]
+  goalItems    ProjectGoalItem[]
+}
+
+model ProjectGoalItem {
+  id        String   @id @default(cuid())
+  projectId String
+  month     Int      // 1-12
+  year      Int
+  label     String   // ej: Separaciones, Cartas Promesa (CPP), Contactos, u otra meta libre
+  target    Int      @default(0)
+  current   Int      @default(0)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model ProjectUnit {
+  id          String   @id @default(cuid())
+  projectId   String
+  unitNumber  String
+  floor       Int?
+  area        Float?
+  rooms       Int?
+  bathrooms   Int?
+  type        String   @default("DEPARTAMENTO")
+  status      String   @default("DISPONIBLE") // DISPONIBLE, RESERVADO, VENDIDO, NO_DISPONIBLE
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model ExternalBroker {
+  id            String   @id @default(cuid())
+  name          String
+  company       String?
+  phone         String?
+  email         String?
+  projectId     String
+  commissionPct Float?   @default(3)  // % comisión
+  soldUnits     Int      @default(0)
+  reservedUnits Int      @default(0)
+  status        String   @default("ACTIVO") // ACTIVO, INACTIVO
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Agent {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  phone        String?
+  role         String   @default("ASESORA") // ASESORA, ASESOR, OPERATIVO, DIRECTOR, u otro rol libre
+  avatar       String?
+  isActive     Boolean  @default(true)
+  passwordHash String? // null = todavía no tiene acceso (sin contraseña asignada)
+  createdAt    DateTime @default(now())
+
+  leads        Lead[]
+  events       CalendarEvent[]
+  reservations Reservation[]
+}
+
+model CalendarEvent {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  type        String    @default("TAREA") // LLAMADA, VISITA, REUNION, TAREA, CIERRE, OTRO
+  date        DateTime
+  endDate     DateTime?
+  allDay      Boolean   @default(false)
+  status      String    @default("PENDIENTE") // PENDIENTE, EN_PROGRESO, COMPLETADO, CANCELADO
+  priority    String    @default("NORMAL") // BAJA, NORMAL, ALTA
+  agentId     String?
+  leadId      String?
+  projectId   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  agent   Agent?   @relation(fields: [agentId], references: [id])
+  lead    Lead?    @relation(fields: [leadId], references: [id])
+  project Project? @relation(fields: [projectId], references: [id])
+}
+
+model Lead {
+  id               String    @id @default(cuid())
+  firstName        String
+  lastName         String
+  email            String?
+  phone            String
+  source           String    // META, GOOGLE, WHATSAPP, WEB, REFERIDO, PORTALINMOBILIARIO, YAPO, PROPERATI, OTRO
+  stage            String    @default("NUEVO") // NUEVO, CONTACTADO, INTERESADO, VISITA, NEGOCIACION, GANADO, PERDIDO
+  temperature      String    @default("NORMAL") // HOT, WARM, NORMAL, COLD
+  budget           Float?
+  notes            String?
+  propertyInterest String?   // DEPARTAMENTO, CASA, PENTHOUSE, OFICINA, OTRO
+  financingType    String?   // CONTADO, FINANCIADO, HIPOTECARIO
+  followUpDate     DateTime?
+  lostReason       String?   // PRECIO, COMPETENCIA, SIN_PRESUPUESTO, TIEMPO, OTRO
+  projectId        String?
+  agentId          String?
+  utmSource        String?
+  utmMedium        String?
+  utmCampaign      String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  project             Project?                 @relation(fields: [projectId], references: [id])
+  agent               Agent?                   @relation(fields: [agentId], references: [id])
+  activities          Activity[]
+  events              CalendarEvent[]
+  reservation         Reservation?
+  whatsappMessages    WhatsAppMessage[]
+  sequenceEnrollments LeadSequenceEnrollment[]
+  bankQualification   BankQualification?
+  documents           Document[]
+}
+
+// ─── WhatsApp Business API ────────────────────────────────────────────────────
+model WhatsAppConfig {
+  id            String   @id @default(cuid())
+  phoneNumberId String   @unique
+  wabaId        String
+  accessToken   String
+  verifyToken   String   @default("wh_verify_token")
+  phoneNumber   String?
+  displayName   String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model WhatsAppMessage {
+  id        String   @id @default(cuid())
+  leadId    String
+  direction String   // INBOUND, OUTBOUND
+  content   String
+  type      String   @default("text")
+  mediaUrl  String?
+  status    String   @default("SENT") // SENT, DELIVERED, READ, FAILED
+  waMsgId   String?  @unique
+  createdAt DateTime @default(now())
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+}
+
+// ─── Formularios Públicos ─────────────────────────────────────────────────────
+model PublicForm {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  subtitle    String?
+  projectId   String?
+  type        String   @default("GENERAL") // GENERAL, FERIA, PRECALIFICACION, VISITA, INVERSIONISTA
+  isActive    Boolean  @default(true)
+  submitCount Int      @default(0)
+  theme       String   @default("blue")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ─── Secuencias de Automatización ────────────────────────────────────────────
+model AutomationSequence {
+  id            String   @id @default(cuid())
+  name          String
+  description   String?
+  isActive      Boolean  @default(true)
+  triggerType   String   // NEW_LEAD, STAGE_CHANGE, MANUAL, TEMPERATURE_CHANGE
+  triggerValue  String?
+  filterTemp    String?
+  filterStage   String?
+  enrolledCount Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  steps       AutomationSequenceStep[]
+  enrollments LeadSequenceEnrollment[]
+}
+
+model AutomationSequenceStep {
+  id         String   @id @default(cuid())
+  sequenceId String
+  stepOrder  Int
+  dayOffset  Int
+  actionType String   // NOTIFICATION, CHANGE_TEMP, CREATE_TASK, WHATSAPP_TEMPLATE
+  actionData String   // JSON
+  createdAt  DateTime @default(now())
+
+  sequence AutomationSequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+}
+
+model LeadSequenceEnrollment {
+  id          String    @id @default(cuid())
+  leadId      String
+  sequenceId  String
+  enrolledAt  DateTime  @default(now())
+  currentStep Int       @default(0)
+  status      String    @default("ACTIVE") // ACTIVE, COMPLETED, CANCELLED
+  nextRunAt   DateTime?
+  completedAt DateTime?
+
+  lead     Lead               @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  sequence AutomationSequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+
+  @@unique([leadId, sequenceId])
+}
+
+// ─── Documentos ───────────────────────────────────────────────────────────────
+model Document {
+  id          String   @id @default(cuid())
+  name        String
+  fileName    String
+  mimeType    String
+  size        Int
+  url         String
+  category    String   @default("GENERAL") // BROCHURE, CONTRATO, PLANO, FOTO, VIDEO, OTRO
+  projectId   String?
+  leadId      String?
+  isShared    Boolean  @default(false)
+  uploadedBy  String?
+  createdAt   DateTime @default(now())
+
+  lead Lead? @relation(fields: [leadId], references: [id], onDelete: SetNull)
+}
+
+// ─── Precalificación Bancaria ─────────────────────────────────────────────────
+model BankQualification {
+  id               String   @id @default(cuid())
+  leadId           String   @unique
+  salary           Float
+  employmentType   String   // ASALARIADO, INDEPENDIENTE
+  employmentMonths Int
+  company          String?
+  currentDebt      Float    @default(0)
+  bankPreference   String?
+  creditHistory    String   @default("BUENO") // BUENO, REGULAR, MALO
+  hasPayslips      Boolean  @default(true)
+  requestedAmount  Float?
+  result           String   // APROBABLE, REVISAR, NO_CALIFICABLE
+  score            Int
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+}
+
+model Reservation {
+  id            String    @id @default(cuid())
+  leadId        String    @unique
+  projectId     String
+  agentId       String?
+  unitNumber    String?
+  unitType      String?   // DEPARTAMENTO, CASA, PENTHOUSE, OFICINA, OTRO
+  floor         Int?
+  area          Float?
+  price         Float
+  currency      String    @default("USD")
+  reserveAmount Float?
+  stage         String    @default("RESERVA") // RESERVA, PROMESA, ESCRITURA, ENTREGADO, CAIDA
+  reserveDate   DateTime  @default(now())
+  promiseDate   DateTime?
+  closingDate   DateTime?
+  deliveryDate  DateTime?
+  commissionPct Float     @default(3)
+  commissionStatus String @default("PENDIENTE") // PENDIENTE, APROBADA, PAGADA
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  lead      Lead       @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  project   Project    @relation(fields: [projectId], references: [id])
+  agent     Agent?     @relation(fields: [agentId], references: [id])
+  documents ReservationDocument[]
+}
+
+model ReservationDocument {
+  id            String    @id @default(cuid())
+  reservationId String
+  name          String
+  type          String    @default("OTRO") // RESERVA, PROMESA, ESCRITURA, CONTRATO, HIPOTECA, OTRO
+  status        String    @default("PENDIENTE") // PENDIENTE, SUBIDO, FIRMADO, VENCIDO
+  notes         String?
+  dueDate       DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+}
+
+model AutomationRule {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  trigger     String    // INACTIVITY_DAYS, FOLLOW_UP_OVERDUE, STAGE_CHANGE, NEW_LEAD, HIGH_SCORE
+  triggerValue String?  // e.g., "7" for 7 days
+  filterStage  String?  // Only apply to leads in this stage
+  filterTemp   String?  // Only apply to leads with this temperature
+  action      String    // CREATE_TASK, ALERT, CHANGE_TEMP, SEND_WHATSAPP_TEMPLATE, ASSIGN_AGENT
+  actionData  String?   // JSON with action parameters
+  isActive    Boolean   @default(true)
+  runCount    Int       @default(0)
+  lastRun     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model WebhookLog {
+  id        String   @id @default(cuid())
+  source    String   // PORTALINMOBILIARIO, YAPO, PROPERATI, TOCTOC, OTRO
+  payload   String   // Raw JSON payload
+  status    String   @default("PROCESADO") // PROCESADO, ERROR, DUPLICADO
+  leadId    String?
+  error     String?
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  type      String   // FOLLOW_UP, NEW_LEAD, VISIT_TODAY, INACTIVITY, STAGE_CHANGE, RESERVATION
+  title     String
+  message   String
+  leadId    String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Activity {
+  id          String   @id @default(cuid())
+  leadId      String
+  type        String   // LLAMADA, WHATSAPP, EMAIL, VISITA, NOTA, REUNION
+  description String
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+}
+
+// Configuración de páginas de Instagram/Facebook conectadas
+model MetaPageConfig {
+  id              String    @id @default(cuid())
+  pageId          String    @unique   // Facebook Page ID (también asociado a Instagram Business)
+  pageName        String
+  instagramHandle String?             // @handle de Instagram para mostrar en UI
+  projectId       String?             // Proyecto por defecto para leads de esta página
+  agentId         String?             // Asesor al que se auto-asignan los leads
+  accessToken     String              // Page Access Token (long-lived)
+  autoAssign      Boolean   @default(true)   // Auto-asignar al agente configurado
+  isActive        Boolean   @default(true)
+  leadsReceived   Int       @default(0)
+  lastLeadAt      DateTime?
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// Log de leads recibidos por Meta (trazabilidad)
+model MetaLeadLog {
+  id          String   @id @default(cuid())
+  leadgenId   String   @unique   // ID único del lead en Meta
+  pageId      String
+  formId      String?
+  adId        String?
+  status      String   @default("PROCESADO") // PROCESADO, ERROR, DUPLICADO
+  leadId      String?  // Lead creado en CRM
+  rawPayload  String   // JSON completo recibido de Meta
+  error       String?
+  createdAt   DateTime @default(now())
+}
+
+model Campaign {
+  id          String   @id @default(cuid())
+  name        String
+  channel     String   // META, GOOGLE, EMAIL, WHATSAPP, OUTDOOR
+  projectId   String?
+  budget      Float
+  spent       Float    @default(0)
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  leads       Int      @default(0)
+  conversions Int      @default(0)
+  startDate   DateTime
+  endDate     DateTime?
+  status      String   @default("ACTIVA") // ACTIVA, PAUSADA, FINALIZADA
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project Project? @relation(fields: [projectId], references: [id])
+}
+
+// Registro de actividad: qué usuario hizo qué acción y cuándo (solo lectura para administradores)
+model AuditLog {
+  id        String   @id @default(cuid())
+  agentId   String?  // null = visitante (sin cuenta)
+  agentName String
+  role      String
+  method    String   // GET, POST, PATCH, DELETE
+  path      String   // ej: /api/leads/abc123
+  createdAt DateTime @default(now())
+}
