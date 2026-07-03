@@ -405,9 +405,11 @@ function FormCard({
 export default function FormulariosClient({
   initialForms,
   projects,
+  embedded = false,
 }: {
   initialForms: PublicForm[]
   projects: Project[]
+  embedded?: boolean
 }) {
   const [forms, setForms] = useState<PublicForm[]>(initialForms)
   const [showCreate, setShowCreate] = useState(false)
@@ -447,14 +449,19 @@ export default function FormulariosClient({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className={embedded ? '' : 'min-h-screen bg-gray-50 p-6'}>
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Formularios Públicos</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Captura leads desde landing pages, ferias y eventos con código QR</p>
-          </div>
+          {!embedded && (
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Formularios Públicos</h1>
+              <p className="text-sm text-gray-500 mt-0.5">Captura leads desde landing pages, ferias y eventos con código QR</p>
+            </div>
+          )}
+          {embedded && (
+            <p className="text-sm text-gray-500">Captura leads desde landing pages, ferias y eventos con código QR</p>
+          )}
           <button
             onClick={() => setShowCreate(true)}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm"

@@ -29,13 +29,14 @@ model Project {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  leads        Lead[]
-  campaigns    Campaign[]
-  brokers      ExternalBroker[]
-  events       CalendarEvent[]
-  reservations Reservation[]
-  units        ProjectUnit[]
-  goalItems    ProjectGoalItem[]
+  leads            Lead[]
+  campaigns        Campaign[]
+  brokers          ExternalBroker[]
+  events           CalendarEvent[]
+  reservations     Reservation[]
+  units            ProjectUnit[]
+  goalItems        ProjectGoalItem[]
+  reservationForms ReservationForm[]
 }
 
 model ProjectGoalItem {
@@ -451,6 +452,19 @@ model AuditLog {
   method    String   // GET, POST, PATCH, DELETE
   path      String   // ej: /api/leads/abc123
   createdAt DateTime @default(now())
+}
+
+// Formularios de reserva — templates editables con secciones y campos
+model ReservationForm {
+  id        String   @id @default(cuid())
+  name      String   // ej: "Formulario de Reserva – Altos de Casa Mía"
+  projectId String?
+  sections  String   @default("[]") // JSON: [{id, title, fields:[{id,label,type,required,options}]}]
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 }
 
 // Plantillas de mensajes WhatsApp personalizadas por asesora
