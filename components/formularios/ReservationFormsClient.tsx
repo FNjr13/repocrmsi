@@ -524,6 +524,122 @@ function BuilderModal({
   )
 }
 
+// ─── Submissions Modal ────────────────────────────────────────────────────────
+interface Submission {
+  id: string
+  createdAt: string
+  data: Record<string, string>
+}
+
+function SubmissionsModal({ form, onClose }: { form: ReservationForm; onClose: () => void }) {
+  const [subs, setSubs] = useState<Submission[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selected, setSelected] = useState<Submission | null>(null)
+
+  const allFields = form.sections.flatMap(s => s.fields)
+
+  useEffect(() => {
+    fetch(`/api/reservation-forms/${form.id}/submissions`)
+      .then(r => r.json())
+      .then((data: Submission[]) => { setSubs(data); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [form.id])
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        <div className="p-5 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+          <div>
+            <h2 className="font-bold text-gray-900">Envíos recibidos</h2>
+            <p className="text-xs text-gray-500 mt-0.5">{form.name}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="w-6 h-6 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : subs.length === 0 ? (
+            <div className="text-center py-16">
+              <div className="text-4xl mb-3">📭</div>
+              <p className="text-gray-500 text-sm">Aún no hay envíos para este formulario.</p>
+            </div>
+          ) : selected ? (
+            <div className="p-5">
+              <button onClick={() => setSelected(null)}
+                className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800 mb-4 font-medium">
+                ← Volver a la lista
+              </button>
+              <p className="text-xs text-gray-400 mb-4">
+                Recibido: {new Date(selected.createdAt).toLocaleString('es-PA', { dateStyle: 'medium', timeStyle: 'short' })}
+              </p>
+              <div className="space-y-4">
+                {form.sections.map(sec => (
+                  <div key={sec.id}>
+                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 pb-1 border-b border-gray-100">
+                      {sec.title}
+                    </h3>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                      {sec.fields.map(f => (
+                        <div key={f.id} className={f.type === 'textarea' ? 'col-span-2' : ''}>
+                          <p className="text-[10px] text-gray-400 uppercase tracking-wide">{f.label}</p>
+                          <p className="text-sm text-gray-800 font-medium">{selected.data[f.id] || '—'}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-50">
+              {subs.map((sub, i) => {
+                const nombre = allFields.find(f => f.label === 'Nombre')
+                const cedula = allFields.find(f => f.label === 'Cédula')
+                const celular = allFields.find(f => f.label === 'Celular')
+                return (
+                  <button key={sub.id} onClick={() => setSelected(sub)}
+                    className="w-full text-left px-5 py-4 hover:bg-indigo-50 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold text-gray-900 text-sm">
+                          {nombre ? (sub.data[nombre.id] || `Envío #${subs.length - i}`) : `Envío #${subs.length - i}`}
+                        </p>
+                        <div className="flex gap-3 mt-0.5">
+                          {cedula && sub.data[cedula.id] && (
+                            <span className="text-xs text-gray-500">Cédula: {sub.data[cedula.id]}</span>
+                          )}
+                          {celular && sub.data[celular.id] && (
+                            <span className="text-xs text-gray-500">📱 {sub.data[celular.id]}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-xs text-gray-400">
+                          {new Date(sub.createdAt).toLocaleDateString('es-PA', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </p>
+                        <p className="text-xs text-indigo-500 font-medium mt-0.5">Ver detalle →</p>
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {!selected && subs.length > 0 && (
+          <div className="p-4 border-t border-gray-100 flex-shrink-0">
+            <p className="text-xs text-gray-400 text-center">{subs.length} envío{subs.length !== 1 ? 's' : ''} recibido{subs.length !== 1 ? 's' : ''}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── Form Card ────────────────────────────────────────────────────────────────
 function ReservationFormCard({
   form,
@@ -532,6 +648,7 @@ function ReservationFormCard({
   onToggle,
   onPrint,
   onQR,
+  onSubmissions,
 }: {
   form: ReservationForm
   onEdit: () => void
@@ -539,6 +656,7 @@ function ReservationFormCard({
   onToggle: () => void
   onPrint: () => void
   onQR: () => void
+  onSubmissions: () => void
 }) {
   const totalFields = form.sections.reduce((acc, s) => acc + s.fields.length, 0)
 
@@ -594,9 +712,9 @@ function ReservationFormCard({
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <button onClick={onToggle}
-            className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-medium transition-colors ${
+            className={`py-1.5 px-2 rounded-lg text-xs font-medium transition-colors ${
               form.isActive
                 ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-100'
                 : 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-100'
@@ -604,8 +722,12 @@ function ReservationFormCard({
             {form.isActive ? 'Desactivar' : 'Activar'}
           </button>
           <button onClick={onPrint}
-            className="flex-1 py-1.5 px-3 rounded-lg text-xs font-medium text-center text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors">
-            📋 Llenar / Imprimir
+            className="py-1.5 px-2 rounded-lg text-xs font-medium text-center text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors">
+            📋 Llenar
+          </button>
+          <button onClick={onSubmissions}
+            className="py-1.5 px-2 rounded-lg text-xs font-medium text-center text-indigo-700 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 transition-colors">
+            📥 Envíos
           </button>
         </div>
       </div>
@@ -631,6 +753,7 @@ export default function ReservationFormsClient({
   const [editingForm, setEditingForm] = useState<ReservationForm | null>(null)
   const [printForm, setPrintForm] = useState<ReservationForm | null>(null)
   const [qrForm, setQrForm] = useState<ReservationForm | null>(null)
+  const [submissionsForm, setSubmissionsForm] = useState<ReservationForm | null>(null)
 
   function handleSaved(saved: ReservationForm) {
     setForms(prev => {
@@ -694,6 +817,7 @@ export default function ReservationFormsClient({
               onToggle={() => { void handleToggle(form) }}
               onPrint={() => setPrintForm(form)}
               onQR={() => setQrForm(form)}
+              onSubmissions={() => setSubmissionsForm(form)}
             />
           ))}
         </div>
@@ -712,6 +836,9 @@ export default function ReservationFormsClient({
       )}
       {qrForm && (
         <QRModal form={qrForm} onClose={() => setQrForm(null)} />
+      )}
+      {submissionsForm && (
+        <SubmissionsModal form={submissionsForm} onClose={() => setSubmissionsForm(null)} />
       )}
     </div>
   )

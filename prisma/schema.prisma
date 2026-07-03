@@ -465,7 +465,18 @@ model ReservationForm {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  project     Project?                   @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  submissions ReservationFormSubmission[]
+}
+
+// Envíos de formularios de reserva (desde el link/QR público)
+model ReservationFormSubmission {
+  id        String   @id @default(cuid())
+  formId    String
+  data      String   // JSON: { fieldId: value, ... }
+  createdAt DateTime @default(now())
+
+  form ReservationForm @relation(fields: [formId], references: [id], onDelete: Cascade)
 }
 
 // Plantillas de mensajes WhatsApp personalizadas por asesora
