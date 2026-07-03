@@ -1312,6 +1312,66 @@ function LeadPanel({ lead, onClose, onStageChange, onActivityAdded, onTemperatur
 
             {activeTab==='templates' && (
               <div className="space-y-4">
+                {/* Mis plantillas — VA PRIMERO para que sea visible sin scroll */}
+                <div className="border border-blue-100 rounded-xl p-3 bg-blue-50/40">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-bold text-blue-700">Mis plantillas</p>
+                    <button onClick={()=>setShowNewTpl(v=>!v)}
+                      className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors">
+                      {showNewTpl ? '✕ Cancelar' : '+ Agregar plantilla'}
+                    </button>
+                  </div>
+
+                  {showNewTpl && (
+                    <div className="bg-white border border-blue-200 rounded-xl p-3 mb-2 space-y-2">
+                      <input
+                        value={newTplLabel}
+                        onChange={e=>setNewTplLabel(e.target.value)}
+                        placeholder="Nombre (ej: Seguimiento semana)"
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <textarea
+                        value={newTplText}
+                        onChange={e=>setNewTplText(e.target.value)}
+                        placeholder={"Mensaje... variables: {{nombre}}, {{proyecto}}, {{asesora}}"}
+                        rows={3}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <button
+                        onClick={()=>{ void saveNewTemplate() }}
+                        disabled={savingTpl || !newTplLabel.trim() || !newTplText.trim()}
+                        className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-xs font-semibold py-2 rounded-lg transition-colors">
+                        {savingTpl ? 'Guardando...' : '✓ Guardar plantilla'}
+                      </button>
+                    </div>
+                  )}
+
+                  {customTemplates.length === 0 && !showNewTpl ? (
+                    <p className="text-xs text-blue-400 text-center py-2">Aún no tienes plantillas — presiona "+ Agregar plantilla"</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {customTemplates.map((t) => (
+                        <div key={t.id} className="bg-white border border-gray-200 rounded-xl p-3 group">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-xs font-semibold text-gray-700">{t.label}</span>
+                            <div className="flex items-center gap-1">
+                              <button onClick={()=>copyTemplate(t, -1)}
+                                className="text-xs px-2.5 py-1 rounded-lg font-semibold bg-gray-100 text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-all">
+                                📋 Copiar
+                              </button>
+                              <button onClick={()=>{ void deleteTemplate(t.id) }}
+                                className="text-xs px-2 py-1 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100">
+                                🗑
+                              </button>
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-500 leading-relaxed">{getTemplate(t)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 {/* Templates del CRM por etapa */}
                 <div>
                   <p className="text-xs text-gray-400 mb-2">Templates del CRM — etapa: <strong className="text-gray-600">{STAGE_CONFIG[lead.stage as keyof typeof STAGE_CONFIG]?.label||lead.stage}</strong></p>
@@ -1324,68 +1384,6 @@ function LeadPanel({ lead, onClose, onStageChange, onActivityAdded, onTemperatur
                             className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-all ${copiedIdx===idx?'bg-green-100 text-green-700':'bg-gray-100 text-gray-600 hover:bg-blue-50 hover:text-blue-600'}`}>
                             {copiedIdx===idx ? '✓ Copiado' : '📋 Copiar'}
                           </button>
-                        </div>
-                        <p className="text-xs text-gray-600 leading-relaxed">{getTemplate(t)}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Plantillas personalizadas */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Mis plantillas</p>
-                    <button onClick={()=>setShowNewTpl(v=>!v)}
-                      className="text-xs px-2.5 py-1 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors">
-                      {showNewTpl ? '✕ Cancelar' : '+ Nueva'}
-                    </button>
-                  </div>
-
-                  {showNewTpl && (
-                    <div className="border border-blue-200 bg-blue-50 rounded-xl p-3 mb-2 space-y-2">
-                      <input
-                        value={newTplLabel}
-                        onChange={e=>setNewTplLabel(e.target.value)}
-                        placeholder="Nombre del template (ej: Seguimiento semana)"
-                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                      />
-                      <textarea
-                        value={newTplText}
-                        onChange={e=>setNewTplText(e.target.value)}
-                        placeholder={"Mensaje... usa {{nombre}}, {{proyecto}}, {{asesora}}"}
-                        rows={3}
-                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                      />
-                      <button
-                        onClick={()=>{ void saveNewTemplate() }}
-                        disabled={savingTpl || !newTplLabel.trim() || !newTplText.trim()}
-                        className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-xs font-semibold py-2 rounded-lg transition-colors">
-                        {savingTpl ? 'Guardando...' : '✓ Guardar plantilla'}
-                      </button>
-                    </div>
-                  )}
-
-                  {customTemplates.length === 0 && !showNewTpl && (
-                    <p className="text-xs text-gray-400 text-center py-3">Aún no tienes plantillas personalizadas</p>
-                  )}
-
-                  <div className="space-y-2">
-                    {customTemplates.map((t) => (
-                      <div key={t.id} className="border border-gray-200 rounded-xl p-3 group">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-semibold text-gray-700">{t.label}</span>
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={()=>copyTemplate(t, -1)}
-                              className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-all ${copiedIdx===-1?'bg-green-100 text-green-700':'bg-gray-100 text-gray-600 hover:bg-blue-50 hover:text-blue-600'}`}>
-                              📋 Copiar
-                            </button>
-                            <button
-                              onClick={()=>{ void deleteTemplate(t.id) }}
-                              className="text-xs px-2 py-1 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100">
-                              🗑
-                            </button>
-                          </div>
                         </div>
                         <p className="text-xs text-gray-600 leading-relaxed">{getTemplate(t)}</p>
                       </div>
