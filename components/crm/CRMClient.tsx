@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { DndContext, DragOverlay, useDroppable, useDraggable, type DragEndEvent, type DragStartEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { STAGE_CONFIG, SOURCE_CONFIG, formatRelativeTime } from '@/lib/utils'
 import Link from 'next/link'
@@ -18,6 +18,7 @@ type Lead = {
 }
 type Agent = { id: string; name: string }
 type Project = { id: string; name: string }
+type MessageTemplate = { id: string; agentId: string | null; label: string; text: string }
 interface CRMData { leads: Lead[]; agents: Agent[]; projects: Project[] }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -1061,6 +1062,48 @@ function LeadPanel({ lead, onClose, onStageChange, onActivityAdded, onTemperatur
   const [lostReason, setLostReason] = useState('')
   const [activeTab, setActiveTab] = useState<'actividad'|'templates'>('actividad')
   const [copiedIdx, setCopiedIdx] = useState<number|null>(null)
+  const [customTemplates, setCustomTemplates] = useState<MessageTemplate[]>([])
+  const [showNewTpl, setShowNewTpl] = useState(false)
+  const [newTplLabel, setNewTplLabel] = useState('')
+  const [newTplText, setNewTplText] = useState('')
+  const [savingTpl, setSavingTpl] = useState(false)
+
+  useEffect(() => {
+    if (activeTab === 'templates') {
+      fetch('/api/message-templates')
+        .then(r => r.json() as Promise<MessageTemplate[]>)
+        .then(setCustomTemplates)
+        .catch(() => {})
+    }
+  }, [activeTab])
+
+  async function saveNewTemplate() {
+    if (!newTplLabel.trim() || !newTplText.trim()) return
+    setSavingTpl(true)
+    try {
+      const res = await fetch('/api/message-templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: newTplLabel, text: newTplText }),
+      })
+      const tpl = await res.json() as MessageTemplate
+      setCustomTemplates(prev => [...prev, tpl])
+      setNewTplLabel('')
+      setNewTplText('')
+      setShowNewTpl(false)
+    } finally {
+      setSavingTpl(false)
+    }
+  }
+
+  async function deleteTemplate(id: string) {
+    await fetch('/api/message-templates', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
+    setCustomTemplates(prev => prev.filter(t => t.id !== id))
+  }
 
   const stageIndex = STAGES.indexOf(lead.stage as typeof STAGES[number])
   const nextStage = stageIndex < STAGES.length-2 ? STAGES[stageIndex+1] : null
@@ -1268,20 +1311,88 @@ function LeadPanel({ lead, onClose, onStageChange, onActivityAdded, onTemperatur
             )}
 
             {activeTab==='templates' && (
-              <div className="space-y-3">
-                <p className="text-xs text-gray-400 mb-3">Templates para etapa: <strong className="text-gray-600">{STAGE_CONFIG[lead.stage as keyof typeof STAGE_CONFIG]?.label||lead.stage}</strong></p>
-                {templates.map((t, idx) => (
-                  <div key={idx} className="border border-gray-200 rounded-xl p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-semibold text-gray-700">{t.label}</span>
-                      <button onClick={()=>copyTemplate(t,idx)}
-                        className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-all ${copiedIdx===idx?'bg-green-100 text-green-700':'bg-gray-100 text-gray-600 hover:bg-blue-50 hover:text-blue-600'}`}>
-                        {copiedIdx===idx ? '✓ Copiado' : '📋 Copiar'}
+              <div className="space-y-4">
+                {/* Templates del CRM por etapa */}
+                <div>
+                  <p className="text-xs text-gray-400 mb-2">Templates del CRM — etapa: <strong className="text-gray-600">{STAGE_CONFIG[lead.stage as keyof typeof STAGE_CONFIG]?.label||lead.stage}</strong></p>
+                  <div className="space-y-2">
+                    {templates.map((t, idx) => (
+                      <div key={idx} className="border border-gray-200 rounded-xl p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-semibold text-gray-700">{t.label}</span>
+                          <button onClick={()=>copyTemplate(t,idx)}
+                            className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-all ${copiedIdx===idx?'bg-green-100 text-green-700':'bg-gray-100 text-gray-600 hover:bg-blue-50 hover:text-blue-600'}`}>
+                            {copiedIdx===idx ? '✓ Copiado' : '📋 Copiar'}
+                          </button>
+                        </div>
+                        <p className="text-xs text-gray-600 leading-relaxed">{getTemplate(t)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Plantillas personalizadas */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Mis plantillas</p>
+                    <button onClick={()=>setShowNewTpl(v=>!v)}
+                      className="text-xs px-2.5 py-1 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors">
+                      {showNewTpl ? '✕ Cancelar' : '+ Nueva'}
+                    </button>
+                  </div>
+
+                  {showNewTpl && (
+                    <div className="border border-blue-200 bg-blue-50 rounded-xl p-3 mb-2 space-y-2">
+                      <input
+                        value={newTplLabel}
+                        onChange={e=>setNewTplLabel(e.target.value)}
+                        placeholder="Nombre del template (ej: Seguimiento semana)"
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      />
+                      <textarea
+                        value={newTplText}
+                        onChange={e=>setNewTplText(e.target.value)}
+                        placeholder={"Mensaje... usa {{nombre}}, {{proyecto}}, {{asesora}}"}
+                        rows={3}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      />
+                      <button
+                        onClick={()=>{ void saveNewTemplate() }}
+                        disabled={savingTpl || !newTplLabel.trim() || !newTplText.trim()}
+                        className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-xs font-semibold py-2 rounded-lg transition-colors">
+                        {savingTpl ? 'Guardando...' : '✓ Guardar plantilla'}
                       </button>
                     </div>
-                    <p className="text-xs text-gray-600 leading-relaxed">{getTemplate(t)}</p>
+                  )}
+
+                  {customTemplates.length === 0 && !showNewTpl && (
+                    <p className="text-xs text-gray-400 text-center py-3">Aún no tienes plantillas personalizadas</p>
+                  )}
+
+                  <div className="space-y-2">
+                    {customTemplates.map((t) => (
+                      <div key={t.id} className="border border-gray-200 rounded-xl p-3 group">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-semibold text-gray-700">{t.label}</span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={()=>copyTemplate(t, -1)}
+                              className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-all ${copiedIdx===-1?'bg-green-100 text-green-700':'bg-gray-100 text-gray-600 hover:bg-blue-50 hover:text-blue-600'}`}>
+                              📋 Copiar
+                            </button>
+                            <button
+                              onClick={()=>{ void deleteTemplate(t.id) }}
+                              className="text-xs px-2 py-1 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100">
+                              🗑
+                            </button>
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-600 leading-relaxed">{getTemplate(t)}</p>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </div>
+
                 <a href={`https://wa.me/${cleanPhone}`} target="_blank" rel="noopener noreferrer"
                   className="block w-full text-center bg-green-500 hover:bg-green-600 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors mt-2">
                   💬 Abrir WhatsApp →
@@ -1415,6 +1526,15 @@ function BulkWhatsAppModal({ leads, onClose, onSent }: {
   const [template, setTemplate] = useState('Hola {{nombre}}, te contactamos desde nuestro equipo de ventas. ¿Te gustaría recibir más información sobre nuestros proyectos?')
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<{ sent: number; failed: number } | null>(null)
+  const [savedTemplates, setSavedTemplates] = useState<MessageTemplate[]>([])
+  const [showTplPicker, setShowTplPicker] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/message-templates')
+      .then(r => r.json() as Promise<MessageTemplate[]>)
+      .then(setSavedTemplates)
+      .catch(() => {})
+  }, [])
 
   const preview = template
     .replace(/\{\{nombre\}\}/g, leads[0]?.firstName ?? 'Nombre')
@@ -1462,6 +1582,30 @@ function BulkWhatsAppModal({ leads, onClose, onSent }: {
           </div>
         ) : (
           <div className="p-5 space-y-4">
+            {/* Selector de plantillas guardadas */}
+            {savedTemplates.length > 0 && (
+              <div>
+                <button
+                  onClick={() => setShowTplPicker(v => !v)}
+                  className="flex items-center gap-2 text-sm text-blue-600 font-semibold hover:text-blue-800 transition-colors">
+                  📋 {showTplPicker ? 'Ocultar plantillas' : `Usar plantilla guardada (${savedTemplates.length})`}
+                </button>
+                {showTplPicker && (
+                  <div className="mt-2 border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
+                    {savedTemplates.map(t => (
+                      <button
+                        key={t.id}
+                        onClick={() => { setTemplate(t.text); setShowTplPicker(false) }}
+                        className="w-full text-left px-4 py-2.5 hover:bg-blue-50 transition-colors">
+                        <p className="text-xs font-semibold text-gray-800">{t.label}</p>
+                        <p className="text-xs text-gray-500 mt-0.5 truncate">{t.text}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Mensaje template{' '}

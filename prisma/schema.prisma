@@ -99,11 +99,12 @@ model Agent {
   passwordHash String? // null = todavía no tiene acceso (sin contraseña asignada)
   createdAt    DateTime @default(now())
 
-  leads            Lead[]
-  events           CalendarEvent[]
-  reservations     Reservation[]
-  whatsappConfig   WhatsAppConfig?
-  whatsappMessages WhatsAppMessage[]
+  leads             Lead[]
+  events            CalendarEvent[]
+  reservations      Reservation[]
+  whatsappConfig    WhatsAppConfig?
+  whatsappMessages  WhatsAppMessage[]
+  messageTemplates  MessageTemplate[]
 }
 
 model CalendarEvent {
@@ -450,4 +451,16 @@ model AuditLog {
   method    String   // GET, POST, PATCH, DELETE
   path      String   // ej: /api/leads/abc123
   createdAt DateTime @default(now())
+}
+
+// Plantillas de mensajes WhatsApp personalizadas por asesora
+model MessageTemplate {
+  id        String   @id @default(cuid())
+  agentId   String?  // null = plantilla compartida (creada por admin)
+  label     String   // nombre corto, ej: "Seguimiento visita"
+  text      String   // cuerpo del mensaje con variables {{nombre}}, {{proyecto}}, etc.
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  agent Agent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
 }
