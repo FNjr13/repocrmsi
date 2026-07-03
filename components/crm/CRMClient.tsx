@@ -1181,7 +1181,7 @@ function LeadPanel({ lead, onClose, onStageChange, onActivityAdded, onTemperatur
             </div>
           </div>
           <div className="flex gap-2 mb-2">
-            <a href={`https://wa.me/${cleanPhone}`} target="_blank" rel="noopener noreferrer"
+            <a href={`whatsapp://send?phone=+${cleanPhone}`}
               className="flex-1 flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">
               💬 WhatsApp
             </a>
@@ -1391,7 +1391,7 @@ function LeadPanel({ lead, onClose, onStageChange, onActivityAdded, onTemperatur
                   </div>
                 </div>
 
-                <a href={`https://wa.me/${cleanPhone}`} target="_blank" rel="noopener noreferrer"
+                <a href={`whatsapp://send?phone=+${cleanPhone}`}
                   className="block w-full text-center bg-green-500 hover:bg-green-600 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors mt-2">
                   💬 Abrir WhatsApp →
                 </a>

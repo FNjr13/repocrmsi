@@ -220,7 +220,7 @@ export default function LeadDetailClient({
               </div>
               {/* Contact buttons */}
               <div className="flex gap-2 mt-4">
-                <a href={`https://wa.me/${cleanPhone}`} target="_blank" rel="noopener noreferrer"
+                <a href={`whatsapp://send?phone=+${cleanPhone}`}
                   className="flex-1 flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold py-2.5 rounded-lg transition-colors">
                   <span>💬</span> WhatsApp
                 </a>
