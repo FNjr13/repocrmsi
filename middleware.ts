@@ -11,6 +11,7 @@ function isPublic(pathname: string, method: string): boolean {
   if (pathname.startsWith('/api/portal/')) return true
   if (pathname === '/api/audit/log') return true // sink interno usado por este middleware
   if (/^\/api\/forms\/[^/]+$/.test(pathname) && (method === 'GET' || method === 'POST')) return true
+  if (pathname.startsWith('/api/forms/reserva/') && method === 'GET') return true
   return false
 }
 

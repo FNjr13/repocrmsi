@@ -1,6 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 
+function toSlug(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 60)
+}
+
+async function uniqueSlug(base: string): Promise<string> {
+  let slug = toSlug(base) || 'reserva'
+  let exists = await prisma.reservationForm.findUnique({ where: { slug } })
+  let i = 2
+  while (exists) {
+    slug = `${toSlug(base)}-${i++}`
+    exists = await prisma.reservationForm.findUnique({ where: { slug } })
+  }
+  return slug
+}
+
 export async function GET() {
   const forms = await prisma.reservationForm.findMany({
     include: { project: { select: { id: true, name: true } } },
@@ -13,8 +34,11 @@ export async function POST(req: NextRequest) {
   const { name, projectId, sections } = await req.json()
   if (!name?.trim()) return NextResponse.json({ error: 'name requerido' }, { status: 400 })
 
+  const slug = await uniqueSlug(name)
+
   const form = await prisma.reservationForm.create({
     data: {
+      slug,
       name: name.trim(),
       projectId: projectId || null,
       sections: JSON.stringify(sections ?? DEFAULT_SECTIONS),
@@ -54,7 +78,7 @@ const DEFAULT_SECTIONS = [
     id: 's3', title: 'Proyecto',
     fields: [
       { id: 'f15', label: 'Fecha de Reserva', type: 'date', required: true },
-      { id: 'f16', label: 'Proyecto', type: 'text', required: true },
+      { id: 'f16', label: 'Proyecto', type: 'text', required: false },
       { id: 'f17', label: 'Promotora', type: 'text', required: false },
       { id: 'f18', label: 'Lote o Unidad', type: 'text', required: false },
       { id: 'f19', label: 'Modelo', type: 'text', required: false },
@@ -67,8 +91,8 @@ const DEFAULT_SECTIONS = [
     id: 's4', title: 'Financiamiento',
     fields: [
       { id: 'f23', label: 'Banco', type: 'text', required: false },
-      { id: 'f24', label: 'Oficial de crédito', type: 'text', required: false },
-      { id: 'f25', label: 'Correo del oficial', type: 'email', required: false },
+      { id: 'f24', label: 'Oficial', type: 'text', required: false },
+      { id: 'f25', label: 'Correo', type: 'email', required: false },
     ],
   },
 ]

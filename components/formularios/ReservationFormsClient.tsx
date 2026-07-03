@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import Image from 'next/image'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export type FieldType = 'text' | 'email' | 'number' | 'date' | 'select' | 'textarea'
@@ -21,6 +22,7 @@ export interface FormSection {
 
 export interface ReservationForm {
   id: string
+  slug: string | null
   name: string
   projectId: string | null
   sections: FormSection[]
@@ -42,6 +44,61 @@ const FIELD_TYPE_LABELS: Record<FieldType, string> = {
 
 function uid() {
   return Math.random().toString(36).slice(2, 9)
+}
+
+// ─── QR Modal ────────────────────────────────────────────────────────────────
+function QRModal({ form, onClose }: { form: ReservationForm; onClose: () => void }) {
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
+  const formUrl = `${baseUrl}/forms/reserva/${form.slug ?? ''}`
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(formUrl)}`
+  const [copied, setCopied] = useState(false)
+
+  function copyUrl() {
+    navigator.clipboard.writeText(formUrl)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+          <div>
+            <h2 className="font-bold text-gray-900">QR & Enlace del formulario</h2>
+            <p className="text-xs text-gray-500 mt-0.5">{form.name}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+        </div>
+        <div className="p-6 flex flex-col items-center gap-5">
+          <div className="p-3 border-2 border-gray-200 rounded-xl bg-white">
+            <Image src={qrUrl} alt="QR Code" width={240} height={240} className="rounded" unoptimized />
+          </div>
+          <p className="text-xs text-gray-500 text-center">Escanea el QR para abrir y completar el formulario</p>
+          <div className="w-full">
+            <label className="block text-xs font-medium text-gray-600 mb-1">Enlace directo</label>
+            <div className="flex items-center gap-2">
+              <input readOnly value={formUrl}
+                className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 text-gray-700 truncate" />
+              <button onClick={copyUrl}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${copied ? 'bg-green-600 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
+                {copied ? '✓' : 'Copiar'}
+              </button>
+            </div>
+          </div>
+          <div className="flex gap-3 w-full">
+            <a href={formUrl} target="_blank" rel="noopener noreferrer"
+              className="flex-1 text-center py-2 px-4 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+              Abrir formulario
+            </a>
+            <button onClick={() => { const a = document.createElement('a'); a.href = qrUrl; a.download = `qr-reserva-${form.slug}.png`; a.click() }}
+              className="flex-1 py-2 px-4 bg-gray-900 text-white rounded-lg text-sm hover:bg-gray-700 transition-colors">
+              Descargar QR
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ─── Print Modal ──────────────────────────────────────────────────────────────
@@ -426,12 +483,14 @@ function ReservationFormCard({
   onDelete,
   onToggle,
   onPrint,
+  onQR,
 }: {
   form: ReservationForm
   onEdit: () => void
   onDelete: () => void
   onToggle: () => void
   onPrint: () => void
+  onQR: () => void
 }) {
   const totalFields = form.sections.reduce((acc, s) => acc + s.fields.length, 0)
 
@@ -457,6 +516,8 @@ function ReservationFormCard({
             )}
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
+            <button onClick={onQR} title="QR y enlace"
+              className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors text-sm">🔗</button>
             <button onClick={onEdit} title="Editar"
               className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors text-sm">✏️</button>
             <button onClick={onDelete} title="Eliminar"
@@ -521,6 +582,7 @@ export default function ReservationFormsClient({
   const [showBuilder, setShowBuilder] = useState(false)
   const [editingForm, setEditingForm] = useState<ReservationForm | null>(null)
   const [printForm, setPrintForm] = useState<ReservationForm | null>(null)
+  const [qrForm, setQrForm] = useState<ReservationForm | null>(null)
 
   function handleSaved(saved: ReservationForm) {
     setForms(prev => {
@@ -583,6 +645,7 @@ export default function ReservationFormsClient({
               onDelete={() => { void handleDelete(form.id) }}
               onToggle={() => { void handleToggle(form) }}
               onPrint={() => setPrintForm(form)}
+              onQR={() => setQrForm(form)}
             />
           ))}
         </div>
@@ -598,6 +661,9 @@ export default function ReservationFormsClient({
       )}
       {printForm && (
         <PrintModal form={printForm} onClose={() => setPrintForm(null)} />
+      )}
+      {qrForm && (
+        <QRModal form={qrForm} onClose={() => setQrForm(null)} />
       )}
     </div>
   )

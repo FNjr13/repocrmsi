@@ -457,6 +457,7 @@ model AuditLog {
 // Formularios de reserva — templates editables con secciones y campos
 model ReservationForm {
   id        String   @id @default(cuid())
+  slug      String?  @unique
   name      String   // ej: "Formulario de Reserva – Altos de Casa Mía"
   projectId String?
   sections  String   @default("[]") // JSON: [{id, title, fields:[{id,label,type,required,options}]}]
