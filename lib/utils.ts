@@ -87,6 +87,16 @@ export const PROJECT_TYPE_CONFIG = {
   MIXTO: { label: 'Mixto', icon: '🏗️' },
 } as const
 
+// Convierte cualquier formato de teléfono al URL de WhatsApp correcto.
+// Si el número es local de Panamá (≤8 dígitos), agrega el código 507.
+export function toWhatsAppUrl(phone: string): string {
+  const digits = phone.replace(/\D/g, '')
+  // Ya tiene código de país (10+ dígitos) → usar directo
+  // Es número local de Panamá (8 dígitos) → agregar 507
+  const full = digits.length <= 8 ? `507${digits}` : digits
+  return `whatsapp://send?phone=${full}`
+}
+
 export const STATUS_CONFIG = {
   ACTIVO: { label: 'En venta', color: 'bg-green-100 text-green-700' },
   EN_CONSTRUCCION: { label: 'En venta', color: 'bg-green-100 text-green-700' },

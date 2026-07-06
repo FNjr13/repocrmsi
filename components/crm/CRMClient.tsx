@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import { DndContext, DragOverlay, useDroppable, useDraggable, type DragEndEvent, type DragStartEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
-import { STAGE_CONFIG, SOURCE_CONFIG, formatRelativeTime } from '@/lib/utils'
+import { STAGE_CONFIG, SOURCE_CONFIG, formatRelativeTime, toWhatsAppUrl } from '@/lib/utils'
 import Link from 'next/link'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1181,7 +1181,7 @@ function LeadPanel({ lead, onClose, onStageChange, onActivityAdded, onTemperatur
             </div>
           </div>
           <div className="flex gap-2 mb-2">
-            <a href={`whatsapp://send?phone=+${cleanPhone}`}
+            <a href={toWhatsAppUrl(lead.phone)}
               className="flex-1 flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">
               💬 WhatsApp
             </a>
@@ -1391,7 +1391,7 @@ function LeadPanel({ lead, onClose, onStageChange, onActivityAdded, onTemperatur
                   </div>
                 </div>
 
-                <a href={`whatsapp://send?phone=+${cleanPhone}`}
+                <a href={toWhatsAppUrl(lead.phone)}
                   className="block w-full text-center bg-green-500 hover:bg-green-600 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors mt-2">
                   💬 Abrir WhatsApp →
                 </a>

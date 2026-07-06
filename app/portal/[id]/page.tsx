@@ -289,7 +289,7 @@ export default function PortalPage({ params }: { params: Promise<{ id: string }>
             <p className="text-sm font-medium mb-1">¿Tienes alguna pregunta?</p>
             <p className="text-blue-100 text-xs mb-4">Contáctate directamente con tu asesor</p>
             <a
-              href={`https://wa.me/${data.lead.phone.replace(/\D/g, '')}`}
+              href={(() => { const d = data.lead.phone.replace(/\D/g,''); return `https://wa.me/${d.length <= 8 ? '507'+d : d}` })()}
               target="_blank" rel="noopener noreferrer"
               className="inline-flex items-center gap-2 bg-white text-blue-700 font-semibold px-5 py-2.5 rounded-xl text-sm hover:bg-blue-50 transition-colors"
             >

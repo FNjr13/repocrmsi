@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { toWhatsAppUrl } from '@/lib/utils'
 
 interface Lead {
   id: string
@@ -488,7 +489,7 @@ export default function ReservationDetailClient({ reservation: initial }: { rese
           {/* Actions */}
           <div className="space-y-2">
             <a
-              href={`whatsapp://send?phone=+${r.lead.phone.replace(/\D/g, '')}`}
+              href={toWhatsAppUrl(r.lead.phone)}
               className="flex items-center gap-2.5 w-full px-4 py-3 bg-green-50 text-green-700 rounded-xl text-sm font-semibold hover:bg-green-100 transition-colors"
             >
               <span>💬</span> WhatsApp al cliente
