@@ -2,7 +2,7 @@ import { prisma } from '@/lib/db'
 import MarketingClient from '@/components/marketing/MarketingClient'
 
 async function getMarketingData() {
-  const [campaigns, leads] = await Promise.all([
+  const [campaigns, leads, marketingRecords, projects] = await Promise.all([
     prisma.campaign.findMany({
       include: { project: { select: { id: true, name: true } } },
       orderBy: { createdAt: 'desc' },
@@ -10,6 +10,15 @@ async function getMarketingData() {
     prisma.lead.groupBy({
       by: ['source'],
       _count: { source: true },
+    }),
+    prisma.marketingRecord.findMany({
+      include: { project: { select: { id: true, name: true } } },
+      orderBy: { date: 'desc' },
+    }),
+    prisma.project.findMany({
+      where: { status: { not: 'ENTREGADO' } },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
     }),
   ])
 
@@ -36,7 +45,7 @@ async function getMarketingData() {
     })
   )
 
-  return { campaigns, leads, channelStats }
+  return { campaigns, leads, channelStats, marketingRecords, projects }
 }
 
 export default async function MarketingPage() {

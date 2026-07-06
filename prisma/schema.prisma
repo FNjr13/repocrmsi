@@ -29,14 +29,15 @@ model Project {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  leads            Lead[]
-  campaigns        Campaign[]
-  brokers          ExternalBroker[]
-  events           CalendarEvent[]
-  reservations     Reservation[]
-  units            ProjectUnit[]
-  goalItems        ProjectGoalItem[]
-  reservationForms ReservationForm[]
+  leads             Lead[]
+  campaigns         Campaign[]
+  brokers           ExternalBroker[]
+  events            CalendarEvent[]
+  reservations      Reservation[]
+  units             ProjectUnit[]
+  goalItems         ProjectGoalItem[]
+  reservationForms  ReservationForm[]
+  marketingRecords  MarketingRecord[]
 }
 
 model ProjectGoalItem {
@@ -441,6 +442,26 @@ model Campaign {
   updatedAt   DateTime @updatedAt
 
   project Project? @relation(fields: [projectId], references: [id])
+}
+
+// Registro manual de métricas de marketing (diario/semanal/mensual por proyecto y canal)
+model MarketingRecord {
+  id          String   @id @default(cuid())
+  projectId   String?
+  channel     String   // META, GOOGLE, TIKTOK, WHATSAPP, EMAIL, REFERIDO, OUTDOOR, OTRO
+  period      String   @default("MENSUAL") // DIARIO, SEMANAL, MENSUAL
+  date        DateTime // día exacto del registro
+  spend       Float    @default(0)  // inversión en $
+  impressions Int      @default(0)
+  reach       Int      @default(0)
+  clicks      Int      @default(0)
+  leads       Int      @default(0)
+  conversions Int      @default(0)  // reservas/ventas
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 }
 
 // Registro de actividad: qué usuario hizo qué acción y cuándo (solo lectura para administradores)
