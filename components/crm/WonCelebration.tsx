@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import type confettiLib from 'canvas-confetti'
 
 interface Props {
   leadName: string
@@ -13,7 +12,8 @@ export default function WonCelebration({ leadName, agentName, onClose }: Props) 
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
-    let confetti: typeof confettiLib | null = null
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let confetti: any = null
     let frame = 0
     let animId: ReturnType<typeof setTimeout>
 
