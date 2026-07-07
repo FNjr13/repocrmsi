@@ -4,6 +4,9 @@ import { useState, useCallback, useMemo, useEffect } from 'react'
 import { DndContext, DragOverlay, useDroppable, useDraggable, type DragEndEvent, type DragStartEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { STAGE_CONFIG, SOURCE_CONFIG, formatRelativeTime, toWhatsAppUrl } from '@/lib/utils'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
+
+const WonCelebration = dynamic(() => import('./WonCelebration'), { ssr: false })
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Lead = {
@@ -1719,12 +1722,25 @@ export default function CRMClient({ data, initialFilter }: {
   const [showImport, setShowImport] = useState(false)
   const [showBulkWA, setShowBulkWA] = useState(false)
   const [scheduleVisitFor, setScheduleVisitFor] = useState<Lead|null>(null)
+  const [wonLead, setWonLead] = useState<{ name: string } | null>(null)
 
   const handleStageChange = useCallback(async (leadId: string, stage: string) => {
+    const lead = leads.find(l => l.id === leadId)
     setLeads(prev => prev.map(l => l.id===leadId ? {...l, stage} : l))
     if (selectedLead?.id===leadId) setSelectedLead(prev => prev ? {...prev, stage} : null)
     await fetch(`/api/leads/${leadId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({stage}) })
-  }, [selectedLead])
+    if (stage === 'GANADO' && lead) {
+      const name = `${lead.firstName} ${lead.lastName}`
+      setWonLead({ name })
+      // Notify all other users
+      const agentName = lead.agent?.name
+      void fetch('/api/notifications/won', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId, leadName: name, agentName }),
+      })
+    }
+  }, [selectedLead, leads, data.agents])
 
   const handleTemperatureChange = useCallback(async (leadId: string, temperature: string) => {
     setLeads(prev => prev.map(l => l.id===leadId ? {...l, temperature} : l))
@@ -2209,6 +2225,14 @@ export default function CRMClient({ data, initialFilter }: {
       {scheduleVisitFor && (
         <ScheduleVisitModal lead={scheduleVisitFor} agents={data.agents} onClose={()=>setScheduleVisitFor(null)}
           onScheduled={()=>{ setScheduleVisitFor(null) }}/>
+      )}
+
+      {/* ── GANADO Celebration ── */}
+      {wonLead && (
+        <WonCelebration
+          leadName={wonLead.name}
+          onClose={() => setWonLead(null)}
+        />
       )}
     </div>
   )
