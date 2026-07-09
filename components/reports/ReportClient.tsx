@@ -3,20 +3,6 @@
 import { useState, useRef } from 'react'
 import { STAGE_CONFIG, STATUS_CONFIG, PROJECT_TYPE_CONFIG, formatDate } from '@/lib/utils'
 
-function Editable({ value, editing, className, tag = 'span' }: { value: string; editing: boolean; className?: string; tag?: 'span' | 'h1' | 'p' | 'div' }) {
-  const Tag = tag
-  if (!editing) return <Tag className={className}>{value}</Tag>
-  return (
-    <Tag
-      contentEditable
-      suppressContentEditableWarning
-      className={`${className ?? ''} outline-none border-b border-dashed border-white/60 focus:border-white min-w-[40px] cursor-text`}
-    >
-      {value}
-    </Tag>
-  )
-}
-
 interface Project { id: string; name: string; location: string; status: string; type: string }
 
 interface ReportData {
@@ -55,8 +41,9 @@ export default function ReportClient({ projects }: { projects: Project[] }) {
   const [report, setReport] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(false)
   const [editMode, setEditMode] = useState(false)
-  const [extraNotes, setExtraNotes] = useState('')
+  const [capturedHtml, setCapturedHtml] = useState<string | null>(null)
   const printRef = useRef<HTMLDivElement>(null)
+  const editRef = useRef<HTMLDivElement>(null)
 
   function applyPreset(preset: typeof PRESETS[0]) {
     const dates = preset.getDates()
@@ -78,20 +65,32 @@ export default function ReportClient({ projects }: { projects: Project[] }) {
     }
   }
 
-  function handlePrint() {
+  function handleExportPDF() {
     window.print()
+  }
+
+  function handleStartEdit() {
+    if (!printRef.current) return
+    // Snapshot current rendered HTML — React won't interfere after this
+    setCapturedHtml(printRef.current.innerHTML)
+    setEditMode(true)
+  }
+
+  function handleStopEdit() {
+    setEditMode(false)
+    setCapturedHtml(null)
   }
 
   async function handleGenerateReport() {
     setEditMode(false)
-    setExtraNotes('')
+    setCapturedHtml(null)
     await generateReport()
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-8 py-5 print:hidden">
+      <div className="bg-white border-b border-gray-200 px-8 py-5 print-hidden">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">📊 Informes</h1>
@@ -99,18 +98,23 @@ export default function ReportClient({ projects }: { projects: Project[] }) {
           </div>
           {report && (
             <div className="flex items-center gap-2">
+              {!editMode ? (
+                <button
+                  onClick={handleStartEdit}
+                  className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg transition-colors border bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+                >
+                  ✏️ Editar informe
+                </button>
+              ) : (
+                <button
+                  onClick={handleStopEdit}
+                  className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg transition-colors border bg-amber-50 border-amber-300 text-amber-700"
+                >
+                  ✅ Terminar edición
+                </button>
+              )}
               <button
-                onClick={() => setEditMode(e => !e)}
-                className={`flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg transition-colors border ${
-                  editMode
-                    ? 'bg-amber-50 border-amber-300 text-amber-700'
-                    : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                {editMode ? '✅ Guardar edición' : '✏️ Editar informe'}
-              </button>
-              <button
-                onClick={handlePrint}
+                onClick={handleExportPDF}
                 className="flex items-center gap-2 bg-gray-900 hover:bg-gray-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
               >
                 📄 Exportar PDF
@@ -122,7 +126,7 @@ export default function ReportClient({ projects }: { projects: Project[] }) {
 
       <div className="p-8 print:p-0">
         {/* Configuration panel */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6 print:hidden">
+        <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6 print-hidden">
           <h2 className="text-sm font-semibold text-gray-700 mb-4 uppercase tracking-wide">Configurar informe</h2>
 
           {/* Project selector */}
@@ -226,37 +230,42 @@ export default function ReportClient({ projects }: { projects: Project[] }) {
 
         {/* ===== REPORT ===== */}
         {report && !loading && (
-          <div ref={printRef} className="space-y-6">
-
-            {/* Edit mode banner */}
-            {editMode && (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 flex items-center gap-3 print:hidden">
-                <span className="text-amber-500 text-xl">✏️</span>
-                <div>
-                  <p className="text-sm font-semibold text-amber-800">Modo edición activo</p>
-                  <p className="text-xs text-amber-600">Haz clic sobre cualquier texto del informe para editarlo. Los cambios solo afectan el PDF exportado.</p>
-                </div>
+          <>
+          {/* Edit mode banner */}
+          {editMode && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 flex items-center gap-3 print-hidden mb-4">
+              <span className="text-amber-500 text-xl">✏️</span>
+              <div>
+                <p className="text-sm font-semibold text-amber-800">Modo edición activo — haz clic en cualquier parte del informe para editar</p>
+                <p className="text-xs text-amber-600">Puedes cambiar textos, números, añadir comentarios, etc. Al exportar PDF se guardará tal como lo ves.</p>
               </div>
-            )}
+            </div>
+          )}
+
+          {/* Edit mode: editable HTML snapshot */}
+          {editMode && capturedHtml && (
+            <div
+              ref={editRef}
+              contentEditable
+              suppressContentEditableWarning
+              className="space-y-6 outline-none"
+              dangerouslySetInnerHTML={{ __html: capturedHtml }}
+            />
+          )}
+
+          {/* Normal read-only report */}
+          <div ref={printRef} className={`space-y-6 ${editMode ? 'hidden' : ''}`}>
+
+            {/* placeholder start of old section */}
 
             {/* Report header */}
             <div className="bg-gradient-to-r from-blue-700 to-indigo-700 rounded-2xl p-7 text-white print:rounded-none">
               <div className="flex items-start justify-between">
                 <div>
-                  <Editable
-                    tag="div"
-                    value="INFORME DE PROYECTO"
-                    editing={editMode}
-                    className="text-blue-200 text-sm font-medium mb-1"
-                  />
-                  <Editable
-                    tag="h1"
-                    value={report.project.name}
-                    editing={editMode}
-                    className="text-3xl font-bold"
-                  />
+                  <div className="text-blue-200 text-sm font-medium mb-1">INFORME DE PROYECTO</div>
+                  <h1 className="text-3xl font-bold">{report.project.name}</h1>
                   <div className="flex items-center gap-3 mt-2 text-blue-100">
-                    <Editable tag="span" value={`📍 ${report.project.location}`} editing={editMode} />
+                    <span>📍 {report.project.location}</span>
                     <span>·</span>
                     <span>{PROJECT_TYPE_CONFIG[report.project.type as keyof typeof PROJECT_TYPE_CONFIG]?.label}</span>
                   </div>
@@ -507,36 +516,25 @@ export default function ReportClient({ projects }: { projects: Project[] }) {
               </div>
             )}
 
-            {/* Observations / editable notes */}
+            {/* Observations section — always in normal report */}
             <div className="bg-white rounded-xl border border-gray-200 p-5">
               <h2 className="text-base font-bold text-gray-900 mb-3">📝 Observaciones del informe</h2>
-              {editMode ? (
-                <textarea
-                  value={extraNotes}
-                  onChange={e => setExtraNotes(e.target.value)}
-                  placeholder="Escribe aquí tus observaciones, conclusiones o comentarios para el informe PDF..."
-                  rows={5}
-                  className="w-full border border-gray-200 rounded-lg p-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                />
-              ) : (
-                <p className={`text-sm text-gray-${extraNotes ? '700' : '400'} whitespace-pre-wrap min-h-[60px]`}>
-                  {extraNotes || 'Sin observaciones. Activa el modo edición para agregar notas al informe.'}
-                </p>
-              )}
+              <p className="text-sm text-gray-400 whitespace-pre-wrap min-h-[60px]">Activa el modo edición para agregar observaciones, conclusiones o comentarios al informe.</p>
             </div>
 
             {/* Footer */}
-            <div className="text-center text-xs text-gray-400 pb-4 print:block">
+            <div className="text-center text-xs text-gray-400 pb-4">
               Informe generado por SI CRM · {formatDate(report.generatedAt)}
             </div>
           </div>
+          </>
         )}
       </div>
 
       {/* Print styles */}
       <style jsx global>{`
         @media print {
-          .print\\:hidden { display: none !important; }
+          .print-hidden { display: none !important; }
           body { background: white; }
           @page { margin: 1.5cm; }
         }

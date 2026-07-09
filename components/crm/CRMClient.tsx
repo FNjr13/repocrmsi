@@ -1948,16 +1948,17 @@ export default function CRMClient({ data, initialFilter }: {
         </div>
 
         {/* Stats strip */}
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-4">
+        <div className="grid grid-cols-3 sm:grid-cols-7 gap-2 mb-4">
           {[
-            {label:'Total leads', value:stats.total, sub:'en el CRM', color:'text-gray-700', bg:'bg-gray-50'},
-            {label:'🔥 Hot leads', value:stats.hot, sub:'activos', color:'text-red-600', bg:'bg-red-50'},
-            {label:'Esta semana', value:stats.thisWeek, sub:'nuevos', color:'text-blue-600', bg:'bg-blue-50'},
-            {label:'En negociación', value:stats.negociacion, sub:'avanzados', color:'text-orange-600', bg:'bg-orange-50'},
-            {label:'Conversión', value:`${stats.convRate}%`, sub:'ganados', color:'text-green-600', bg:'bg-green-50'},
-            {label:'⚠️ Follow-up', value:stats.followUpOverdue, sub:'vencidos', color:'text-amber-600', bg:'bg-amber-50'},
+            {label:'Total leads', value:stats.total, sub:'en el CRM', color:'text-gray-700', bg:'bg-gray-50', onClick: undefined},
+            {label:'🔥 Hot leads', value:stats.hot, sub:'activos', color:'text-red-600', bg:'bg-red-50', onClick: undefined},
+            {label:'Esta semana', value:stats.thisWeek, sub:'nuevos', color:'text-blue-600', bg:'bg-blue-50', onClick: undefined},
+            {label:'En negociación', value:stats.negociacion, sub:'avanzados', color:'text-orange-600', bg:'bg-orange-50', onClick: undefined},
+            {label:'Conversión', value:`${stats.convRate}%`, sub:'ganados', color:'text-green-600', bg:'bg-green-50', onClick: undefined},
+            {label:'⚠️ Follow-up', value:stats.followUpOverdue, sub:'vencidos', color:'text-amber-600', bg:'bg-amber-50', onClick: undefined},
+            {label:'💜 P.I.', value:stats.pi, sub:'pres. insuf.', color:'text-violet-700', bg: filter.showPI ? 'bg-violet-100 ring-2 ring-violet-400' : 'bg-violet-50', onClick: ()=>setFilter(f=>({...f,showPI:!f.showPI}))},
           ].map(s=>(
-            <div key={s.label} className={`${s.bg} rounded-xl p-3 border border-gray-200 cursor-default`}>
+            <div key={s.label} onClick={s.onClick} className={`${s.bg} rounded-xl p-3 border border-gray-200 ${s.onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : 'cursor-default'}`}>
               <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
               <div className="text-xs font-semibold text-gray-600 mt-0.5 leading-tight">{s.label}</div>
               <div className="text-xs text-gray-400">{s.sub}</div>
@@ -2015,10 +2016,6 @@ export default function CRMClient({ data, initialFilter }: {
             <button onClick={()=>setFilter(f=>({...f,showLost:!f.showLost}))}
               className={`px-3 py-2 rounded-xl text-xs font-medium border transition-all ${filter.showLost?'bg-red-50 text-red-600 border-red-200':'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
               {filter.showLost?'✕':'+'}  Perdidos
-            </button>
-            <button onClick={()=>setFilter(f=>({...f,showPI:!f.showPI}))}
-              className={`px-3 py-2 rounded-xl text-xs font-medium border transition-all ${filter.showPI?'bg-violet-50 text-violet-700 border-violet-200':'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
-              {filter.showPI?'✕':'+'} P.I.{stats.pi > 0 && <span className={`ml-1 ${filter.showPI?'bg-violet-200':'bg-gray-200'} text-xs rounded-full px-1.5`}>{stats.pi}</span>}
             </button>
             {(filter.search||filter.source||filter.projectId||filter.agentId||filter.temperature||filter.preset) && (
               <button onClick={()=>setFilter({source:'',projectId:'',agentId:'',temperature:'',search:'',showLost:false,showPI:false,preset:''})}
