@@ -25,7 +25,7 @@ type MessageTemplate = { id: string; agentId: string | null; label: string; text
 interface CRMData { leads: Lead[]; agents: Agent[]; projects: Project[] }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const STAGES = ['NUEVO','CONTACTADO','INTERESADO','VISITA','NEGOCIACION','GANADO','PERDIDO'] as const
+const STAGES = ['NUEVO','CONTACTADO','INTERESADO','VISITA','NEGOCIACION','GANADO','PERDIDO','PI'] as const
 const VISIBLE_STAGES = ['NUEVO','CONTACTADO','INTERESADO','VISITA','NEGOCIACION','GANADO'] as const
 
 const ACTIVITY_TYPES = [
@@ -1110,7 +1110,7 @@ function LeadPanel({ lead, onClose, onStageChange, onActivityAdded, onTemperatur
 
   const stageIndex = STAGES.indexOf(lead.stage as typeof STAGES[number])
   const nextStage = stageIndex < STAGES.length-2 ? STAGES[stageIndex+1] : null
-  const canGoNext = nextStage && !['GANADO','PERDIDO'].includes(lead.stage)
+  const canGoNext = nextStage && !['GANADO','PERDIDO','PI'].includes(lead.stage)
   const score = calcScore(lead)
   const followUpOverdue = lead.followUpDate && new Date(lead.followUpDate) < new Date()
 
@@ -1233,11 +1233,11 @@ function LeadPanel({ lead, onClose, onStageChange, onActivityAdded, onTemperatur
           <div className="p-4 border-b border-gray-100">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">📊 Etapa</p>
             <div className="flex flex-wrap gap-1.5 mb-3">
-              {STAGES.filter(s=>s!=='PERDIDO').map(s=>{
+              {STAGES.filter(s=>!['PERDIDO','PI'].includes(s)).map(s=>{
                 const cfg = STAGE_CONFIG[s as keyof typeof STAGE_CONFIG]
                 const isA = lead.stage===s
                 const idx = STAGES.indexOf(s as typeof STAGES[number])
-                const isPast = STAGES.indexOf(lead.stage as typeof STAGES[number])>idx && lead.stage!=='PERDIDO'
+                const isPast = STAGES.indexOf(lead.stage as typeof STAGES[number])>idx && !['PERDIDO','PI'].includes(lead.stage)
                 return (
                   <button key={s} onClick={()=>onStageChange(lead.id,s)}
                     className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all ${isA?(cfg?.color||'bg-blue-100 text-blue-700')+' ring-2 ring-offset-1':isPast?'bg-gray-100 text-gray-400':'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
@@ -1246,7 +1246,7 @@ function LeadPanel({ lead, onClose, onStageChange, onActivityAdded, onTemperatur
                 )
               })}
             </div>
-            {canGoNext && nextStage!=='PERDIDO' && (
+            {canGoNext && !['PERDIDO','PI'].includes(nextStage ?? '') && (
               <button onClick={()=>onStageChange(lead.id,nextStage!)}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm py-2.5 rounded-xl transition-colors">
                 Avanzar → {STAGE_CONFIG[nextStage as keyof typeof STAGE_CONFIG]?.label}
@@ -1258,10 +1258,22 @@ function LeadPanel({ lead, onClose, onStageChange, onActivityAdded, onTemperatur
                 🏆 Marcar como Ganado
               </button>
             )}
-            {!['GANADO','PERDIDO'].includes(lead.stage) && (
+            {!['GANADO','PERDIDO','PI'].includes(lead.stage) && (
+              <button onClick={()=>onStageChange(lead.id,'PI')}
+                className="mt-2 w-full text-xs text-violet-500 hover:text-violet-700 hover:bg-violet-50 py-2 rounded-xl transition-colors">
+                💜 Presupuesto insuficiente (P.I.)
+              </button>
+            )}
+            {!['GANADO','PERDIDO','PI'].includes(lead.stage) && (
               <button onClick={()=>setShowLostModal(true)}
-                className="mt-2 w-full text-xs text-red-400 hover:text-red-600 hover:bg-red-50 py-2 rounded-xl transition-colors">
+                className="mt-1 w-full text-xs text-red-400 hover:text-red-600 hover:bg-red-50 py-2 rounded-xl transition-colors">
                 ✕ Marcar como perdido
+              </button>
+            )}
+            {lead.stage==='PI' && (
+              <button onClick={()=>onStageChange(lead.id,'CONTACTADO')}
+                className="mt-2 w-full text-xs text-blue-500 hover:text-blue-700 hover:bg-blue-50 py-2 rounded-xl transition-colors border border-blue-200">
+                ↩ Reactivar lead
               </button>
             )}
           </div>
@@ -1705,7 +1717,7 @@ export default function CRMClient({ data, initialFilter }: {
   const [leads, setLeads] = useState<Lead[]>(data.leads)
   const [filter, setFilter] = useState({
     source: initialFilter?.source||'', projectId: initialFilter?.projectId||'',
-    agentId: initialFilter?.agentId||'', temperature:'', search:'', showLost:false, preset:'',
+    agentId: initialFilter?.agentId||'', temperature:'', search:'', showLost:false, showPI:false, preset:'',
   })
   const [showModal, setShowModal] = useState(false)
   const [view, setView] = useState<'kanban'|'list'|'stats'>('kanban')
@@ -1818,6 +1830,7 @@ export default function CRMClient({ data, initialFilter }: {
   const filteredLeads = useMemo(() => {
     return leads.filter(l => {
       if (!filter.showLost && l.stage==='PERDIDO') return false
+      if (!filter.showPI && l.stage==='PI') return false
       if (filter.source && l.source!==filter.source) return false
       if (filter.projectId && l.project?.id!==filter.projectId) return false
       if (filter.agentId && l.agent?.id!==filter.agentId) return false
@@ -1860,19 +1873,20 @@ export default function CRMClient({ data, initialFilter }: {
     const weekAgo = new Date(now.getTime()-7*86400000)
     return {
       total: leads.length,
-      active: leads.filter(l=>!['GANADO','PERDIDO'].includes(l.stage)).length,
-      hot: leads.filter(l=>l.temperature==='HOT'&&!['GANADO','PERDIDO'].includes(l.stage)).length,
+      active: leads.filter(l=>!['GANADO','PERDIDO','PI'].includes(l.stage)).length,
+      hot: leads.filter(l=>l.temperature==='HOT'&&!['GANADO','PERDIDO','PI'].includes(l.stage)).length,
       thisWeek: leads.filter(l=>new Date(l.createdAt as string)>=weekAgo).length,
       negociacion: leads.filter(l=>l.stage==='NEGOCIACION').length,
       ganados: leads.filter(l=>l.stage==='GANADO').length,
+      pi: leads.filter(l=>l.stage==='PI').length,
       convRate: leads.length>0?((leads.filter(l=>l.stage==='GANADO').length/leads.length)*100).toFixed(1):'0.0',
-      followUpOverdue: leads.filter(l=>l.followUpDate&&new Date(l.followUpDate)<now&&!['GANADO','PERDIDO'].includes(l.stage)).length,
+      followUpOverdue: leads.filter(l=>l.followUpDate&&new Date(l.followUpDate)<now&&!['GANADO','PERDIDO','PI'].includes(l.stage)).length,
       noActivity7d: leads.filter(l=>{
-        if(['GANADO','PERDIDO'].includes(l.stage)) return false
+        if(['GANADO','PERDIDO','PI'].includes(l.stage)) return false
         const d=l.activities[0]?Math.floor((now.getTime()-new Date(l.activities[0].date as string).getTime())/86400000):999
         return d>=7
       }).length,
-      noAgent: leads.filter(l=>!l.agent&&!['GANADO','PERDIDO'].includes(l.stage)).length,
+      noAgent: leads.filter(l=>!l.agent&&!['GANADO','PERDIDO','PI'].includes(l.stage)).length,
     }
   }, [leads, now])
 
@@ -2002,8 +2016,12 @@ export default function CRMClient({ data, initialFilter }: {
               className={`px-3 py-2 rounded-xl text-xs font-medium border transition-all ${filter.showLost?'bg-red-50 text-red-600 border-red-200':'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
               {filter.showLost?'✕':'+'}  Perdidos
             </button>
+            <button onClick={()=>setFilter(f=>({...f,showPI:!f.showPI}))}
+              className={`px-3 py-2 rounded-xl text-xs font-medium border transition-all ${filter.showPI?'bg-violet-50 text-violet-700 border-violet-200':'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+              {filter.showPI?'✕':'+'} P.I.{stats.pi > 0 && <span className={`ml-1 ${filter.showPI?'bg-violet-200':'bg-gray-200'} text-xs rounded-full px-1.5`}>{stats.pi}</span>}
+            </button>
             {(filter.search||filter.source||filter.projectId||filter.agentId||filter.temperature||filter.preset) && (
-              <button onClick={()=>setFilter({source:'',projectId:'',agentId:'',temperature:'',search:'',showLost:false,preset:''})}
+              <button onClick={()=>setFilter({source:'',projectId:'',agentId:'',temperature:'',search:'',showLost:false,showPI:false,preset:''})}
                 className="text-xs text-blue-500 hover:text-blue-700 font-medium px-2">Limpiar</button>
             )}
             <span className="text-xs text-gray-400 ml-auto">{filteredLeads.length} leads</span>
@@ -2075,6 +2093,21 @@ export default function CRMClient({ data, initialFilter }: {
                   </div>
                   <div className="p-2 space-y-2 max-h-[calc(100vh-300px)] overflow-y-auto">
                     {filteredLeads.filter(l=>l.stage==='PERDIDO').map(l=><LeadCard key={l.id} lead={l} onSelect={setSelectedLead} selected={selectedIds.has(l.id)} onToggle={toggleSelect}/>)}
+                  </div>
+                </div>
+              )}
+              {filter.showPI && (
+                <div className="flex-shrink-0 w-[260px] bg-violet-50/50 rounded-xl border border-violet-200 border-t-4 border-t-violet-500">
+                  <div className="p-3 border-b border-violet-200 flex items-center gap-2">
+                    <span className="text-violet-600">💜</span>
+                    <h3 className="font-bold text-sm text-violet-700 flex-1">P.I. — Pres. Insuficiente</h3>
+                    <span className="w-6 h-6 bg-white border border-violet-200 text-violet-600 text-xs font-bold rounded-full flex items-center justify-center">{filteredLeads.filter(l=>l.stage==='PI').length}</span>
+                  </div>
+                  <div className="px-3 py-2 border-b border-violet-100 bg-violet-50">
+                    <p className="text-[11px] text-violet-500 leading-relaxed">Leads interesados con presupuesto insuficiente para proyectos actuales.</p>
+                  </div>
+                  <div className="p-2 space-y-2 max-h-[calc(100vh-300px)] overflow-y-auto">
+                    {filteredLeads.filter(l=>l.stage==='PI').map(l=><LeadCard key={l.id} lead={l} onSelect={setSelectedLead} selected={selectedIds.has(l.id)} onToggle={toggleSelect}/>)}
                   </div>
                 </div>
               )}

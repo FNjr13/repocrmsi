@@ -69,6 +69,7 @@ export const STAGE_CONFIG = {
   NEGOCIACION: { label: 'Negociación', color: 'bg-orange-100 text-orange-700', dot: 'bg-orange-400' },
   GANADO: { label: 'Ganado ✓', color: 'bg-green-100 text-green-700', dot: 'bg-green-500' },
   PERDIDO: { label: 'Perdido', color: 'bg-red-100 text-red-700', dot: 'bg-red-400' },
+  PI: { label: 'P.I.', color: 'bg-violet-100 text-violet-700', dot: 'bg-violet-400' },
 } as const
 
 export const SOURCE_CONFIG = {
