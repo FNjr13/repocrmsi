@@ -64,7 +64,8 @@ model ProjectUnit {
   rooms       Int?
   bathrooms   Int?
   type        String   @default("DEPARTAMENTO")
-  status      String   @default("DISPONIBLE") // DISPONIBLE, RESERVADO, VENDIDO, NO_DISPONIBLE
+  status      String   @default("DISPONIBLE") // DISPONIBLE, RESERVADO, CPP, VENDIDO, NO_DISPONIBLE
+  clientName  String?
   notes       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
