@@ -1999,8 +1999,13 @@ export default function CRMClient({ data, initialFilter }: {
             </select>
             <select value={filter.agentId} onChange={e=>setFilter(f=>({...f,agentId:e.target.value}))}
               className="text-sm border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none text-gray-600">
-              <option value="">Todas las asesoras</option>
-              {data.agents.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
+              <option value="">Todo el equipo</option>
+              <optgroup label="🏆 Equipo de Ventas">
+                {data.agents.filter((a:{id:string;name:string;department?:string})=>(a.department||'VENTAS')==='VENTAS').map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
+              </optgroup>
+              <optgroup label="⚙️ Soporte &amp; Gestión">
+                {data.agents.filter((a:{id:string;name:string;department?:string})=>(a.department||'VENTAS')!=='VENTAS').map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
+              </optgroup>
             </select>
             {/* Temperature pills */}
             <div className="flex gap-1 border border-gray-200 rounded-xl p-1 bg-white">

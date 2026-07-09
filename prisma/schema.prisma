@@ -95,7 +95,8 @@ model Agent {
   name         String
   email        String   @unique
   phone        String?
-  role         String   @default("ASESORA") // ASESORA, ASESOR, OPERATIVO, DIRECTOR, u otro rol libre
+  role         String   @default("ASESORA") // VENDEDORA, GERENCIA, DIRECCIÓN, ANALÍTICA, COMMUNITY, OPERATIVO
+  department   String   @default("VENTAS")  // VENTAS, GERENCIA, APOYO
   avatar       String?
   isActive     Boolean  @default(true)
   passwordHash String? // null = todavía no tiene acceso (sin contraseña asignada)

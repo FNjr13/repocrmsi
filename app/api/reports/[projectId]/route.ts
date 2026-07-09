@@ -74,6 +74,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ proj
     return {
       id: agent.id,
       name: agent.name,
+      role: agent.role,
+      department: (agent as { department?: string }).department ?? 'VENTAS',
       leads: agentLeads.length,
       won: agentLeads.filter(l => l.stage === 'GANADO').length,
       lost: agentLeads.filter(l => l.stage === 'PERDIDO').length,

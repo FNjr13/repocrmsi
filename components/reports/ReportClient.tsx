@@ -13,7 +13,7 @@ interface ReportData {
   bySource: Record<string, number>
   byStage: Record<string, number>
   byActivityType: Record<string, number>
-  byAgent: Array<{ id: string; name: string; leads: number; won: number; lost: number; active: number; activities: number; conversionRate: number }>
+  byAgent: Array<{ id: string; name: string; role: string; department: string; leads: number; won: number; lost: number; active: number; activities: number; conversionRate: number }>
   campaignsInPeriod: Array<{ id: string; name: string; status: string; spent: number; leads: number; clicks: number }>
   recentLeads: Array<{ id: string; name: string; stage: string; source: string; agent: string | null; activitiesCount: number; createdAt: string }>
 }
@@ -386,47 +386,64 @@ export default function ReportClient({ projects }: { projects: Project[] }) {
               </div>
             </div>
 
-            {/* Rendimiento por asesora */}
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <h2 className="text-base font-bold text-gray-900 mb-4">👩‍💼 Rendimiento por asesora</h2>
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    {['Asesora', 'Leads asignados', 'Ganados', 'Perdidos', 'En seguimiento', 'Actividades', 'Conversión'].map(h => (
-                      <th key={h} className="text-left text-xs font-semibold text-gray-500 uppercase pb-3 pr-4">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {(report.byAgent as Array<{ id: string; name: string; leads: number; won: number; lost: number; active: number; activities: number; conversionRate: number }>).map(a => (
-                    <tr key={a.id} className="border-b border-gray-100 last:border-0">
-                      <td className="py-3 pr-4">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-400 to-pink-500 flex items-center justify-center text-white text-xs font-bold">
-                            {a.name.split(' ').map((w: string) => w[0]).slice(0,2).join('')}
-                          </div>
-                          <span className="font-medium text-sm text-gray-800">{a.name}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 pr-4 text-sm font-bold text-blue-600">{a.leads}</td>
-                      <td className="py-3 pr-4 text-sm font-bold text-green-600">{a.won}</td>
-                      <td className="py-3 pr-4 text-sm font-bold text-red-500">{a.lost}</td>
-                      <td className="py-3 pr-4 text-sm font-bold text-orange-500">{a.active}</td>
-                      <td className="py-3 pr-4 text-sm font-bold text-gray-700">{a.activities}</td>
-                      <td className="py-3">
-                        <span className={`text-sm font-bold px-2.5 py-1 rounded-full ${
-                          a.conversionRate >= 20 ? 'bg-green-100 text-green-700' :
-                          a.conversionRate >= 10 ? 'bg-yellow-100 text-yellow-700' :
-                          'bg-red-100 text-red-600'
-                        }`}>
-                          {a.conversionRate}%
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            {/* Rendimiento por equipo */}
+            {(() => {
+              type AgentRow = { id: string; name: string; role: string; department: string; leads: number; won: number; lost: number; active: number; activities: number; conversionRate: number }
+              const allAgents = report.byAgent as AgentRow[]
+              const ventas = allAgents.filter(a => a.department === 'VENTAS')
+              const others = allAgents.filter(a => a.department !== 'VENTAS')
+              const AgentTable = ({ agents, title, accent }: { agents: AgentRow[]; title: string; accent: string }) => (
+                <div className={`mb-4 rounded-xl border ${accent} overflow-hidden`}>
+                  <div className={`px-4 py-2.5 flex items-center gap-2 ${accent.replace('border-', 'bg-').replace('-200','-50')}`}>
+                    <span className="text-sm font-bold text-gray-800">{title}</span>
+                    <span className="text-xs text-gray-500 ml-auto">{agents.length} personas</span>
+                  </div>
+                  <table className="w-full bg-white">
+                    <thead>
+                      <tr className="border-b border-gray-100">
+                        {['Nombre · Rol','Leads','Ganados','Perdidos','Activos','Actividades','Conversión'].map(h=>(
+                          <th key={h} className="text-left text-xs font-semibold text-gray-400 uppercase px-4 py-2 first:pl-4">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {agents.map(a=>(
+                        <tr key={a.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${a.department==='VENTAS'?'bg-gradient-to-br from-blue-500 to-indigo-600':'bg-gradient-to-br from-gray-400 to-gray-500'}`}>
+                                {a.name.split(' ').map((w:string)=>w[0]).slice(0,2).join('')}
+                              </div>
+                              <div>
+                                <div className="font-medium text-sm text-gray-800">{a.name}</div>
+                                <div className="text-xs text-gray-400">{a.role}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-sm font-bold text-blue-600">{a.leads}</td>
+                          <td className="px-4 py-3 text-sm font-bold text-green-600">{a.won}</td>
+                          <td className="px-4 py-3 text-sm font-bold text-red-500">{a.lost}</td>
+                          <td className="px-4 py-3 text-sm font-bold text-orange-500">{a.active}</td>
+                          <td className="px-4 py-3 text-sm font-bold text-gray-700">{a.activities}</td>
+                          <td className="px-4 py-3">
+                            <span className={`text-sm font-bold px-2.5 py-1 rounded-full ${a.conversionRate>=20?'bg-green-100 text-green-700':a.conversionRate>=10?'bg-yellow-100 text-yellow-700':'bg-red-100 text-red-600'}`}>
+                              {a.conversionRate}%
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+              return (
+                <div className="bg-white rounded-xl border border-gray-200 p-5">
+                  <h2 className="text-base font-bold text-gray-900 mb-4">👥 Rendimiento del equipo</h2>
+                  {ventas.length > 0 && <AgentTable agents={ventas} title="🏆 Equipo de Ventas" accent="border-blue-200" />}
+                  {others.length > 0 && <AgentTable agents={others} title="⚙️ Soporte & Gestión" accent="border-gray-200" />}
+                </div>
+              )
+            })()}
 
             <div className="grid grid-cols-2 gap-6">
               {/* Actividades */}

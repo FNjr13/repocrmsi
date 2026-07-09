@@ -13,8 +13,6 @@ export default function LoginForm() {
   const [remember, setRemember] = useState(true)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [guestLoading, setGuestLoading] = useState(false)
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!email.trim() || !password) return
@@ -36,21 +34,6 @@ export default function LoginForm() {
       window.location.href = next
     } finally {
       setLoading(false)
-    }
-  }
-
-  const handleGuest = async () => {
-    setGuestLoading(true)
-    setError('')
-    try {
-      const res = await fetch('/api/auth/guest', { method: 'POST' })
-      if (!res.ok) {
-        setError('No se pudo entrar como visitante')
-        return
-      }
-      window.location.href = next
-    } finally {
-      setGuestLoading(false)
     }
   }
 
@@ -115,21 +98,8 @@ export default function LoginForm() {
           </button>
         </form>
 
-        <div className="flex items-center gap-3 my-5">
-          <div className="flex-1 h-px bg-gray-200" />
-          <span className="text-xs text-gray-400">o</span>
-          <div className="flex-1 h-px bg-gray-200" />
-        </div>
-
-        <button
-          onClick={handleGuest}
-          disabled={guestLoading}
-          className="w-full py-2.5 bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-50 text-gray-700 text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
-        >
-          <span>👀</span> {guestLoading ? 'Entrando...' : 'Entrar como visitante (solo ver)'}
-        </button>
-        <p className="text-xs text-gray-400 text-center mt-3">
-          El modo visitante permite ver toda la plataforma, pero no se puede crear, editar ni eliminar nada.
+        <p className="text-xs text-gray-400 text-center mt-4">
+          Acceso restringido · Solo usuarios autorizados
         </p>
       </div>
     </div>
