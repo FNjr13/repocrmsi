@@ -221,7 +221,7 @@ ${crmContext}`
       'X-Title': 'SI CRM Asistente',
     },
     body: JSON.stringify({
-      model: 'meta-llama/llama-3.1-8b-instruct:free',
+      model: 'google/gemma-4-26b-a4b-it:free',
       max_tokens: 1024,
       messages: [
         { role: 'system', content: systemPrompt },
