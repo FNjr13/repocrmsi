@@ -6,49 +6,61 @@ type Params = { params: Promise<{ id: string }> }
 
 export async function GET(_req: NextRequest, { params }: Params) {
   const { id } = await params
-  const investor = await prisma.investor.findUnique({
+  const broker = await prisma.externalBrokerAgent.findUnique({
     where: { id },
     include: {
-      properties: {
-        include: { project: { select: { id: true, name: true, type: true } } },
-        orderBy: { createdAt: 'desc' },
-      },
+      brokerProjects: { include: { project: { select: { id: true, name: true, type: true } } }, orderBy: { createdAt: 'desc' } },
       activities: { orderBy: { date: 'desc' } },
     },
   })
-  if (!investor) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  return NextResponse.json(investor)
+  if (!broker) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  return NextResponse.json(broker)
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   const { id } = await params
   const body = await req.json()
 
-  // Handle adding a property
-  if (body._action === 'add_property') {
-    const prop = await prisma.investorProperty.create({
+  if (body._action === 'add_project') {
+    const proj = await prisma.brokerProject.create({
       data: {
         id: randomUUID(),
-        investorId: id,
+        brokerId: id,
         projectId: body.projectId || null,
         projectName: body.projectName,
-        unitNumber: body.unitNumber || null,
-        status: body.status || 'RESERVADO',
-        price: body.price ? parseFloat(body.price) : null,
-        purchaseDate: body.purchaseDate ? new Date(body.purchaseDate) : null,
+        unitsSold: parseInt(body.unitsSold || '0'),
+        unitsReserved: parseInt(body.unitsReserved || '0'),
+        commissionPct: body.commissionPct ? parseFloat(body.commissionPct) : 3,
         notes: body.notes || null,
       },
       include: { project: { select: { id: true, name: true, type: true } } },
     })
-    return NextResponse.json(prop)
+    return NextResponse.json(proj)
   }
 
-  // Handle adding an activity
+  if (body._action === 'update_project') {
+    const proj = await prisma.brokerProject.update({
+      where: { id: body.projectId },
+      data: {
+        unitsSold: parseInt(body.unitsSold ?? '0'),
+        unitsReserved: parseInt(body.unitsReserved ?? '0'),
+        commissionPct: body.commissionPct ? parseFloat(body.commissionPct) : undefined,
+        notes: body.notes ?? undefined,
+      },
+    })
+    return NextResponse.json(proj)
+  }
+
+  if (body._action === 'delete_project') {
+    await prisma.brokerProject.delete({ where: { id: body.brokerProjectId } })
+    return NextResponse.json({ ok: true })
+  }
+
   if (body._action === 'add_activity') {
-    const act = await prisma.investorActivity.create({
+    const act = await prisma.brokerActivity.create({
       data: {
         id: randomUUID(),
-        investorId: id,
+        brokerId: id,
         type: body.type,
         description: body.description,
         date: body.date ? new Date(body.date) : new Date(),
@@ -57,33 +69,28 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json(act)
   }
 
-  // Handle deleting a property
-  if (body._action === 'delete_property') {
-    await prisma.investorProperty.delete({ where: { id: body.propertyId } })
-    return NextResponse.json({ ok: true })
-  }
-
-  // Update investor fields
-  const investor = await prisma.investor.update({
+  const broker = await prisma.externalBrokerAgent.update({
     where: { id },
     data: {
       name: body.name,
-      email: body.email ?? undefined,
+      company: body.company ?? undefined,
       phone: body.phone ?? undefined,
+      email: body.email ?? undefined,
       country: body.country ?? undefined,
       city: body.city ?? undefined,
       type: body.type ?? undefined,
       status: body.status ?? undefined,
-      budget: body.budget !== undefined ? (body.budget ? parseFloat(body.budget) : null) : undefined,
+      licenseNumber: body.licenseNumber ?? undefined,
+      commissionPct: body.commissionPct !== undefined ? (body.commissionPct ? parseFloat(body.commissionPct) : null) : undefined,
       notes: body.notes ?? undefined,
       followUpDate: body.followUpDate !== undefined ? (body.followUpDate ? new Date(body.followUpDate) : null) : undefined,
     },
   })
-  return NextResponse.json(investor)
+  return NextResponse.json(broker)
 }
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const { id } = await params
-  await prisma.investor.delete({ where: { id } })
+  await prisma.externalBrokerAgent.delete({ where: { id } })
   return NextResponse.json({ ok: true })
 }
