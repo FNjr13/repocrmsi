@@ -68,7 +68,7 @@ export default function CRMChatbot() {
       const data = await res.json()
       if (data.error === 'NO_API_KEY') {
         setHasApiKey(false)
-        setMessages(prev => [...prev, { role: 'assistant', content: '⚠️ El asistente no está activado todavía. Pide al administrador que agregue la GEMINI_API_KEY en Vercel.' }])
+        setMessages(prev => [...prev, { role: 'assistant', content: '⚠️ El asistente no está activado todavía. Pide al administrador que agregue la OPENROUTER_API_KEY en Vercel.' }])
       } else {
         setMessages(prev => [...prev, { role: 'assistant', content: data.reply }])
       }

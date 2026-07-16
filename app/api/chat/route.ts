@@ -174,7 +174,7 @@ interface Message {
 }
 
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.GEMINI_API_KEY
+  const apiKey = process.env.OPENROUTER_API_KEY
   if (!apiKey) {
     return NextResponse.json({ error: 'NO_API_KEY' }, { status: 503 })
   }
@@ -206,37 +206,37 @@ Reglas:
 DATA ACTUAL DEL CRM:
 ${crmContext}`
 
-  // Convertir historial al formato de Gemini (role: user/model)
-  const contents = [
-    ...history.slice(-10).map((m: Message) => ({
-      role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }],
-    })),
-    { role: 'user', parts: [{ text: message }] },
+  const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [
+    ...history.slice(-10),
+    { role: 'user', content: message },
   ]
 
-  const geminiRes = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemPrompt }] },
-        contents,
-        generationConfig: { maxOutputTokens: 1024, temperature: 0.7 },
-      }),
-    }
-  )
+  // OpenRouter — API compatible con OpenAI, modelos gratuitos disponibles
+  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+      'HTTP-Referer': 'https://si-crm.vercel.app',
+      'X-Title': 'SI CRM Asistente',
+    },
+    body: JSON.stringify({
+      model: 'meta-llama/llama-3.1-8b-instruct:free',
+      max_tokens: 1024,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...messages,
+      ],
+    }),
+  })
 
-  if (!geminiRes.ok) {
-    const err = await geminiRes.text()
-    console.error('Gemini error:', err)
+  if (!res.ok) {
+    const err = await res.text()
+    console.error('OpenRouter error:', err)
     return NextResponse.json({ error: 'Error del proveedor de IA' }, { status: 502 })
   }
 
-  const data = await geminiRes.json() as {
-    candidates: Array<{ content: { parts: Array<{ text: string }> } }>
-  }
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+  const data = await res.json() as { choices: Array<{ message: { content: string } }> }
+  const text = data.choices?.[0]?.message?.content ?? ''
   return NextResponse.json({ reply: text })
 }
