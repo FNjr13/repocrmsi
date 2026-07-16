@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import Anthropic from '@anthropic-ai/sdk'
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 function today() {
   const d = new Date()
@@ -177,9 +174,9 @@ interface Message {
 }
 
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.ANTHROPIC_API_KEY
+  const apiKey = process.env.GROQ_API_KEY
   if (!apiKey) {
-    return NextResponse.json({ error: 'ANTHROPIC_API_KEY no configurada' }, { status: 503 })
+    return NextResponse.json({ error: 'NO_API_KEY' }, { status: 503 })
   }
 
   const { message, history = [] }: { message: string; history: Message[] } = await req.json()
@@ -214,13 +211,30 @@ ${crmContext}`
     { role: 'user', content: message },
   ]
 
-  const response = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 1024,
-    system: systemPrompt,
-    messages,
+  // Groq API (OpenAI-compatible, completamente gratis)
+  const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      max_tokens: 1024,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...messages,
+      ],
+    }),
   })
 
-  const text = response.content[0].type === 'text' ? response.content[0].text : ''
+  if (!groqRes.ok) {
+    const err = await groqRes.text()
+    console.error('Groq error:', err)
+    return NextResponse.json({ error: 'Error del proveedor de IA' }, { status: 502 })
+  }
+
+  const data = await groqRes.json() as { choices: Array<{ message: { content: string } }> }
+  const text = data.choices?.[0]?.message?.content ?? ''
   return NextResponse.json({ reply: text })
 }

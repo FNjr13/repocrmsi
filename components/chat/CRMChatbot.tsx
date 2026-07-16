@@ -66,9 +66,9 @@ export default function CRMChatbot() {
         body: JSON.stringify({ message: msg, history: messages }),
       })
       const data = await res.json()
-      if (data.error === 'ANTHROPIC_API_KEY no configurada') {
+      if (data.error === 'NO_API_KEY') {
         setHasApiKey(false)
-        setMessages(prev => [...prev, { role: 'assistant', content: '⚠️ El asistente no está configurado todavía. Pide al administrador que agregue la API key de Anthropic.' }])
+        setMessages(prev => [...prev, { role: 'assistant', content: '⚠️ El asistente no está activado todavía. Pide al administrador que agregue la GROQ_API_KEY en Vercel.' }])
       } else {
         setMessages(prev => [...prev, { role: 'assistant', content: data.reply }])
       }
