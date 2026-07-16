@@ -6,6 +6,9 @@ import UserMenu from '@/components/ui/UserMenu'
 import { ToastProvider } from '@/components/ui/Toast'
 import { getSession } from '@/lib/session'
 import { isAdminRole } from '@/lib/auth'
+import dynamic from 'next/dynamic'
+
+const CRMChatbot = dynamic(() => import('@/components/chat/CRMChatbot'), { ssr: false })
 
 export default async function DashboardLayout({
   children,
@@ -50,6 +53,7 @@ export default async function DashboardLayout({
         </div>
       </div>
       <OnboardingTour />
+      <CRMChatbot />
     </ToastProvider>
   )
 }
