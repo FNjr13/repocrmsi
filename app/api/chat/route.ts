@@ -174,7 +174,7 @@ interface Message {
 }
 
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.GROQ_API_KEY
+  const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) {
     return NextResponse.json({ error: 'NO_API_KEY' }, { status: 503 })
   }
@@ -206,35 +206,37 @@ Reglas:
 DATA ACTUAL DEL CRM:
 ${crmContext}`
 
-  const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [
-    ...history.slice(-10),
-    { role: 'user', content: message },
+  // Convertir historial al formato de Gemini (role: user/model)
+  const contents = [
+    ...history.slice(-10).map((m: Message) => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    })),
+    { role: 'user', parts: [{ text: message }] },
   ]
 
-  // Groq API (OpenAI-compatible, completamente gratis)
-  const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      max_tokens: 1024,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...messages,
-      ],
-    }),
-  })
+  const geminiRes = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents,
+        generationConfig: { maxOutputTokens: 1024, temperature: 0.7 },
+      }),
+    }
+  )
 
-  if (!groqRes.ok) {
-    const err = await groqRes.text()
-    console.error('Groq error:', err)
+  if (!geminiRes.ok) {
+    const err = await geminiRes.text()
+    console.error('Gemini error:', err)
     return NextResponse.json({ error: 'Error del proveedor de IA' }, { status: 502 })
   }
 
-  const data = await groqRes.json() as { choices: Array<{ message: { content: string } }> }
-  const text = data.choices?.[0]?.message?.content ?? ''
+  const data = await geminiRes.json() as {
+    candidates: Array<{ content: { parts: Array<{ text: string }> } }>
+  }
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
   return NextResponse.json({ reply: text })
 }
