@@ -2,6 +2,11 @@
 
 import { useState, useEffect, useCallback } from 'react'
 
+function toWA(phone: string | null) {
+  if (!phone) return '#'
+  return `https://wa.me/${phone.replace(/\D/g, '')}`
+}
+
 interface Activity { id: string; type: string; description: string; date: string }
 interface BrokerProj {
   id: string; projectName: string; unitsSold: number; unitsReserved: number
@@ -233,6 +238,18 @@ export default function BrokersClient({ projects }: { projects: { id: string; na
                       {selected.phone && <span>📞 {selected.phone}</span>}
                       {selected.email && <span>✉ {selected.email}</span>}
                     </div>
+                    {selected.phone && (
+                      <div className="flex gap-2 mt-2">
+                        <a href={toWA(selected.phone)} target="_blank" rel="noreferrer"
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold rounded-lg transition-colors">
+                          💬 WhatsApp
+                        </a>
+                        <a href={`tel:${selected.phone}`}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition-colors">
+                          📞 Llamar
+                        </a>
+                      </div>
+                    )}
                     <div className="flex flex-wrap items-center gap-2 mt-1">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${TYPE_CONFIG[selected.type]?.color}`}>{TYPE_CONFIG[selected.type]?.label}</span>
                       {selected.country && <span className="text-xs text-gray-500">📍 {selected.country}{selected.city ? `, ${selected.city}` : ''}</span>}
