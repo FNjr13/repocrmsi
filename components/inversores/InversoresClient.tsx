@@ -61,6 +61,7 @@ export default function BrokersClient({ projects }: { projects: { id: string; na
 
   const [showAddAct, setShowAddAct] = useState(false)
   const [newAct, setNewAct] = useState({ type: 'LLAMADA', description: '', date: new Date().toISOString().slice(0, 16) })
+  const [apiError, setApiError] = useState<string | null>(null)
 
   const [newBroker, setNewBroker] = useState({ name: '', company: '', phone: '', email: '', country: 'Panamá', city: '', type: 'AGENCIA', status: 'ACTIVO', licenseNumber: '', commissionPct: '3', notes: '' })
 
@@ -90,39 +91,51 @@ export default function BrokersClient({ projects }: { projects: { id: string; na
     totalSold: brokers.reduce((sum, b) => sum + b.brokerProjects.reduce((s, p) => s + p.unitsSold, 0), 0),
   }
 
+  async function api(url: string, opts: RequestInit) {
+    const res = await fetch(url, opts)
+    if (!res.ok) {
+      const text = await res.text()
+      throw new Error(`${res.status}: ${text.slice(0, 200)}`)
+    }
+    return res.json()
+  }
+
   async function createBroker() {
     if (!newBroker.name.trim()) return
-    setSaving(true)
-    const res = await fetch('/api/inversores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newBroker) })
-    const b = await res.json()
-    setBrokers(prev => [{ ...b, brokerProjects: [], activities: [], _count: { brokerProjects: 0, activities: 0 } }, ...prev])
-    setNewBroker({ name: '', company: '', phone: '', email: '', country: 'Panamá', city: '', type: 'AGENCIA', status: 'ACTIVO', licenseNumber: '', commissionPct: '3', notes: '' })
-    setShowNew(false)
+    setSaving(true); setApiError(null)
+    try {
+      const b = await api('/api/inversores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newBroker) })
+      setBrokers(prev => [{ ...b, brokerProjects: [], activities: [], _count: { brokerProjects: 0, activities: 0 } }, ...prev])
+      setNewBroker({ name: '', company: '', phone: '', email: '', country: 'Panamá', city: '', type: 'AGENCIA', status: 'ACTIVO', licenseNumber: '', commissionPct: '3', notes: '' })
+      setShowNew(false)
+    } catch (e: unknown) { setApiError(e instanceof Error ? e.message : 'Error') }
     setSaving(false)
   }
 
   async function saveEdit() {
     if (!selected) return
-    setSaving(true)
-    const res = await fetch(`/api/inversores/${selected.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editData) })
-    const updated = await res.json()
-    const merged = { ...selected, ...updated }
-    setSelected(merged)
-    setBrokers(prev => prev.map(b => b.id === selected.id ? { ...b, ...updated } : b))
-    setEditing(false)
+    setSaving(true); setApiError(null)
+    try {
+      const updated = await api(`/api/inversores/${selected.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editData) })
+      const merged = { ...selected, ...updated }
+      setSelected(merged)
+      setBrokers(prev => prev.map(b => b.id === selected.id ? { ...b, ...updated } : b))
+      setEditing(false)
+    } catch (e: unknown) { setApiError(e instanceof Error ? e.message : 'Error') }
     setSaving(false)
   }
 
   async function addProject() {
     if (!selected || !newProj.projectName.trim()) return
-    setSaving(true)
-    const res = await fetch(`/api/inversores/${selected.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ _action: 'add_project', ...newProj }) })
-    const proj = await res.json()
-    const updated = { ...selected, brokerProjects: [proj, ...selected.brokerProjects] }
-    setSelected(updated)
-    setBrokers(prev => prev.map(b => b.id === selected.id ? { ...b, brokerProjects: updated.brokerProjects } : b))
-    setNewProj({ projectId: '', projectName: '', unitsSold: '0', unitsReserved: '0', commissionPct: '3', notes: '' })
-    setShowAddProj(false)
+    setSaving(true); setApiError(null)
+    try {
+      const proj = await api(`/api/inversores/${selected.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ _action: 'add_project', ...newProj }) })
+      const updated = { ...selected, brokerProjects: [proj, ...selected.brokerProjects] }
+      setSelected(updated)
+      setBrokers(prev => prev.map(b => b.id === selected.id ? { ...b, brokerProjects: updated.brokerProjects } : b))
+      setNewProj({ projectId: '', projectName: '', unitsSold: '0', unitsReserved: '0', commissionPct: '3', notes: '' })
+      setShowAddProj(false)
+    } catch (e: unknown) { setApiError(e instanceof Error ? e.message : 'Error') }
     setSaving(false)
   }
 
@@ -136,12 +149,13 @@ export default function BrokersClient({ projects }: { projects: { id: string; na
 
   async function addActivity() {
     if (!selected || !newAct.description.trim()) return
-    setSaving(true)
-    const res = await fetch(`/api/inversores/${selected.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ _action: 'add_activity', ...newAct }) })
-    const act = await res.json()
-    setSelected(prev => prev ? { ...prev, activities: [act, ...prev.activities] } : prev)
-    setNewAct({ type: 'LLAMADA', description: '', date: new Date().toISOString().slice(0, 16) })
-    setShowAddAct(false)
+    setSaving(true); setApiError(null)
+    try {
+      const act = await api(`/api/inversores/${selected.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ _action: 'add_activity', ...newAct }) })
+      setSelected(prev => prev ? { ...prev, activities: [act, ...prev.activities] } : prev)
+      setNewAct({ type: 'LLAMADA', description: '', date: new Date().toISOString().slice(0, 16) })
+      setShowAddAct(false)
+    } catch (e: unknown) { setApiError(e instanceof Error ? e.message : 'Error') }
     setSaving(false)
   }
 
@@ -155,7 +169,14 @@ export default function BrokersClient({ projects }: { projects: { id: string; na
   const grad = (status: string) => status === 'VIP' ? 'from-amber-400 to-orange-500' : 'from-indigo-500 to-purple-600'
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full flex-col">
+      {apiError && (
+        <div className="flex-shrink-0 bg-red-50 border-b border-red-200 px-4 py-2 text-sm text-red-700 flex items-center justify-between">
+          <span>⚠️ {apiError}</span>
+          <button onClick={() => setApiError(null)} className="ml-4 text-red-400 hover:text-red-600">✕</button>
+        </div>
+      )}
+    <div className="flex flex-1 overflow-hidden">
       {/* LEFT */}
       <div className="w-80 flex-shrink-0 border-r border-gray-200 bg-white flex flex-col">
         <div className="p-4 border-b border-gray-100">
@@ -526,6 +547,7 @@ export default function BrokersClient({ projects }: { projects: { id: string; na
           </div>
         </div>
       )}
+    </div>
     </div>
   )
 }
