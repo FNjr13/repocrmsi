@@ -24,12 +24,9 @@ async function getProject(id: string) {
         },
         orderBy: { createdAt: 'desc' },
       },
-      campaigns: {
-        orderBy: { startDate: 'desc' },
-      },
-      brokers: {
-        orderBy: { createdAt: 'asc' },
-      },
+      campaigns: { orderBy: { startDate: 'desc' } },
+      brokers: { orderBy: { createdAt: 'asc' } },
+      changelogs: { orderBy: { date: 'desc' } },
     },
   })
 }
@@ -97,9 +94,11 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             <div className="bg-white rounded-xl border border-gray-200 p-5">
               <h3 className="font-semibold text-gray-900 mb-4">Información del Proyecto</h3>
               <div className="space-y-3 text-sm">
-                {project.description && <p className="text-gray-600">{project.description}</p>}
+                {project.description && (
+                  <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 text-blue-800 text-xs">{project.description}</div>
+                )}
                 <div className="pt-2 space-y-2">
-                  <div className="flex justify-between"><span className="text-gray-500">Precio mín.</span><span className="font-medium">{formatPrice(project.priceMin, project.currency)}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Precio preventa</span><span className="font-bold text-green-700">{formatPrice(project.priceMin, project.currency)}</span></div>
                   <div className="flex justify-between"><span className="text-gray-500">Precio máx.</span><span className="font-medium">{formatPrice(project.priceMax, project.currency)}</span></div>
                   <div className="flex justify-between"><span className="text-gray-500">Inicio obras</span><span className="font-medium">{formatDate(project.startDate)}</span></div>
                   {project.deliveryDate && <div className="flex justify-between"><span className="text-gray-500">Entrega</span><span className="font-medium">{formatDate(project.deliveryDate)}</span></div>}
@@ -134,6 +133,45 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                 </div>
               </div>
             </div>
+
+            {/* Changelog */}
+            {project.changelogs.length > 0 && (
+              <div className="bg-white rounded-xl border border-gray-200 p-5">
+                <h3 className="font-semibold text-gray-900 mb-4">📋 Historial de cambios</h3>
+                <div className="space-y-3">
+                  {project.changelogs.map((log, i) => {
+                    const typeConfig: Record<string, { icon: string; color: string; bg: string }> = {
+                      PRECIO:  { icon: '💰', color: 'text-green-700', bg: 'bg-green-50 border-green-200' },
+                      INCLUYE: { icon: '✅', color: 'text-blue-700',  bg: 'bg-blue-50 border-blue-200' },
+                      ESTADO:  { icon: '🔄', color: 'text-orange-700',bg: 'bg-orange-50 border-orange-200' },
+                      NOTA:    { icon: '📝', color: 'text-gray-700',  bg: 'bg-gray-50 border-gray-200' },
+                    }
+                    const cfg = typeConfig[log.type] ?? typeConfig.NOTA
+                    return (
+                      <div key={log.id} className={`border rounded-xl p-3 ${cfg.bg}`}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">{cfg.icon}</span>
+                            <span className={`text-sm font-semibold ${cfg.color}`}>{log.title}</span>
+                          </div>
+                          <span className="text-xs text-gray-400 flex-shrink-0">
+                            {new Date(log.date).toLocaleDateString('es-PA', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </span>
+                        </div>
+                        {(log.previousValue || log.newValue) && (
+                          <div className="flex items-center gap-2 mt-2 text-xs">
+                            {log.previousValue && <span className="line-through text-gray-400 bg-red-50 px-2 py-0.5 rounded">{log.previousValue}</span>}
+                            {log.previousValue && log.newValue && <span className="text-gray-400">→</span>}
+                            {log.newValue && <span className="font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded">{log.newValue}</span>}
+                          </div>
+                        )}
+                        {log.description && <p className="text-xs text-gray-600 mt-1.5">{log.description}</p>}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Campaigns summary */}
             <div className="bg-white rounded-xl border border-gray-200 p-5">

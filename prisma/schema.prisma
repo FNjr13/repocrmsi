@@ -39,6 +39,20 @@ model Project {
   reservationForms  ReservationForm[]
   marketingRecords  MarketingRecord[]
   brokerProjects BrokerProject[]
+  changelogs     ProjectChangelog[]
+}
+
+model ProjectChangelog {
+  id            String   @id @default(cuid())
+  projectId     String
+  date          DateTime @default(now())
+  type          String   // PRECIO, INCLUYE, NOTA, ESTADO
+  title         String
+  previousValue String?
+  newValue      String?
+  description   String?
+  createdAt     DateTime @default(now())
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
 
 model ProjectGoalItem {
