@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
         agent: { select: { id: true, name: true } },
         activities: { orderBy: { date: 'desc' }, take: 1 },
       },
-      orderBy: { updatedAt: 'desc' },
+      orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
     })
 
     return NextResponse.json(leads)

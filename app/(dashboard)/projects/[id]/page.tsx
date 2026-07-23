@@ -5,6 +5,7 @@ import { STATUS_CONFIG, PROJECT_TYPE_CONFIG, STAGE_CONFIG, SOURCE_CONFIG, format
 import BrokersSection from '@/components/projects/BrokersSection'
 import MetasSection from '@/components/projects/MetasSection'
 import UnitsSection from '@/components/projects/UnitsSection'
+import ProjectLeadsSearch from '@/components/projects/ProjectLeadsSearch'
 
 const UNIT_LABEL_BY_TYPE: Record<string, string> = {
   CASAS: 'Lote',
@@ -201,42 +202,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           {/* Leads list */}
           <div className="col-span-2">
             <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-900">Leads del Proyecto</h3>
-                <span className="text-sm text-gray-500">{project.leads.length} total</span>
-              </div>
-              <div className="space-y-2">
-                {project.leads.length === 0 && (
-                  <p className="text-center text-gray-400 text-sm py-8">No hay leads para este proyecto</p>
-                )}
-                {project.leads.map(lead => {
-                  const stageCfg = STAGE_CONFIG[lead.stage as keyof typeof STAGE_CONFIG]
-                  const sourceCfg = SOURCE_CONFIG[lead.source as keyof typeof SOURCE_CONFIG]
-                  return (
-                    <Link
-                      key={lead.id}
-                      href={`/crm/${lead.id}`}
-                      className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                        {lead.firstName[0]}{lead.lastName[0]}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm text-gray-900">{lead.firstName} {lead.lastName}</div>
-                        <div className="text-xs text-gray-500">{sourceCfg?.icon} {lead.phone}</div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {lead.agent && (
-                          <span className="text-xs text-gray-500">{lead.agent.name}</span>
-                        )}
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${stageCfg?.color || ''}`}>
-                          {stageCfg?.label || lead.stage}
-                        </span>
-                      </div>
-                    </Link>
-                  )
-                })}
-              </div>
+              <ProjectLeadsSearch leads={project.leads} />
             </div>
           </div>
         </div>
