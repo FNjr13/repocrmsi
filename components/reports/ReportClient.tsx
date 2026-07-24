@@ -5,6 +5,20 @@ import { STAGE_CONFIG, STATUS_CONFIG, PROJECT_TYPE_CONFIG, formatDate } from '@/
 
 interface Project { id: string; name: string; location: string; status: string; type: string }
 
+interface Reservation {
+  id: string
+  unitNumber: string | null
+  unitType: string | null
+  floor: number | null
+  area: number | null
+  price: number
+  currency: string
+  stage: string
+  reserveDate: string
+  clientName: string
+  agentName: string | null
+}
+
 interface ReportData {
   project: { name: string; location: string; type: string; progress: number; totalUnits: number; soldUnits: number; reservedUnits: number; availableUnits: number }
   period: { from: string; to: string }
@@ -16,6 +30,7 @@ interface ReportData {
   byAgent: Array<{ id: string; name: string; role: string; department: string; leads: number; won: number; lost: number; active: number; activities: number; conversionRate: number }>
   campaignsInPeriod: Array<{ id: string; name: string; status: string; spent: number; leads: number; clicks: number }>
   recentLeads: Array<{ id: string; name: string; stage: string; source: string; agent: string | null; activitiesCount: number; createdAt: string }>
+  reservations: Reservation[]
 }
 
 const PRESETS = [
@@ -29,6 +44,13 @@ const PRESETS = [
 const SOURCE_LABELS: Record<string, string> = { META: 'Meta Ads', GOOGLE: 'Google Ads', WHATSAPP: 'WhatsApp', WEB: 'Web', REFERIDO: 'Referido', OTRO: 'Otro' }
 const SOURCE_ICONS: Record<string, string> = { META: '📘', GOOGLE: '🔍', WHATSAPP: '💬', WEB: '🌐', REFERIDO: '👥', OTRO: '📌' }
 const ACTIVITY_LABELS: Record<string, string> = { LLAMADA: '📞 Llamada', WHATSAPP: '💬 WhatsApp', EMAIL: '✉️ Email', VISITA: '🏠 Visita', NOTA: '📝 Nota', REUNION: '🤝 Reunión' }
+const RESERVATION_STAGE: Record<string, { label: string; color: string }> = {
+  RESERVA:   { label: 'Separación',  color: 'bg-amber-100 text-amber-700' },
+  PROMESA:   { label: 'Promesa/CPP', color: 'bg-purple-100 text-purple-700' },
+  ESCRITURA: { label: 'Escritura',   color: 'bg-blue-100 text-blue-700' },
+  ENTREGADO: { label: 'Entregado',   color: 'bg-green-100 text-green-700' },
+  CAIDA:     { label: 'Caída',       color: 'bg-red-100 text-red-600' },
+}
 
 export default function ReportClient({ projects }: { projects: Project[] }) {
   const today = new Date().toISOString().slice(0, 10)
@@ -532,6 +554,60 @@ export default function ReportClient({ projects }: { projects: Project[] }) {
                 </table>
               </div>
             )}
+
+            {/* Separaciones */}
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-base font-bold text-gray-900">🏠 Separaciones del período</h2>
+                <span className="text-sm font-semibold text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                  {report.reservations.length} {report.reservations.length === 1 ? 'separación' : 'separaciones'}
+                </span>
+              </div>
+              {report.reservations.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-6">No hay separaciones registradas en este período</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200 text-xs text-gray-500 uppercase">
+                      <th className="text-left pb-2 pr-4"># Lote / Unidad</th>
+                      <th className="text-left pb-2 pr-4">Nombre del cliente</th>
+                      <th className="text-left pb-2 pr-4">Asesor</th>
+                      <th className="text-left pb-2 pr-4">Tipo</th>
+                      <th className="text-left pb-2 pr-4">Precio</th>
+                      <th className="text-left pb-2 pr-4">Etapa</th>
+                      <th className="text-left pb-2">Fecha</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {report.reservations.map(r => {
+                      const stageCfg = RESERVATION_STAGE[r.stage] ?? { label: r.stage, color: 'bg-gray-100 text-gray-700' }
+                      return (
+                        <tr key={r.id} className="hover:bg-gray-50/50">
+                          <td className="py-2.5 pr-4">
+                            <span className="font-bold text-gray-900 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg text-sm">
+                              {r.unitNumber ?? '—'}
+                            </span>
+                            {r.floor && <span className="text-xs text-gray-400 ml-1.5">Piso {r.floor}</span>}
+                          </td>
+                          <td className="py-2.5 pr-4 font-semibold text-gray-800">{r.clientName}</td>
+                          <td className="py-2.5 pr-4 text-gray-600">{r.agentName ?? '—'}</td>
+                          <td className="py-2.5 pr-4 text-gray-500 text-xs">{r.unitType ?? '—'}{r.area ? ` · ${r.area}m²` : ''}</td>
+                          <td className="py-2.5 pr-4 font-semibold text-green-700">
+                            {r.currency === 'USD' ? '$' : r.currency}{r.price.toLocaleString()}
+                          </td>
+                          <td className="py-2.5 pr-4">
+                            <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${stageCfg.color}`}>
+                              {stageCfg.label}
+                            </span>
+                          </td>
+                          <td className="py-2.5 text-gray-500">{formatDate(r.reserveDate)}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
 
             {/* Observations section — always in normal report */}
             <div className="bg-white rounded-xl border border-gray-200 p-5">

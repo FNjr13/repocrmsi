@@ -9,7 +9,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ proj
   // Set to end of day
   to.setHours(23, 59, 59, 999)
 
-  const [project, leadsInPeriod, activitiesInPeriod, allLeads] = await Promise.all([
+  const [project, leadsInPeriod, activitiesInPeriod, allLeads, reservations] = await Promise.all([
     prisma.project.findUnique({
       where: { id: projectId },
       include: {
@@ -41,6 +41,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ proj
     prisma.lead.findMany({
       where: { projectId },
       include: { agent: { select: { id: true, name: true } } },
+    }),
+    prisma.reservation.findMany({
+      where: { projectId, reserveDate: { gte: from, lte: to } },
+      include: {
+        lead: { select: { id: true, firstName: true, lastName: true } },
+        agent: { select: { id: true, name: true } },
+      },
+      orderBy: { reserveDate: 'desc' },
     }),
   ])
 
@@ -136,6 +144,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ proj
     recentLeads,
     pipelineAll,
     brokers: project.brokers,
+    reservations: reservations.map(r => ({
+      id: r.id,
+      unitNumber: r.unitNumber,
+      unitType: r.unitType,
+      floor: r.floor,
+      area: r.area,
+      price: r.price,
+      currency: r.currency,
+      stage: r.stage,
+      reserveDate: r.reserveDate,
+      clientName: `${r.lead.firstName} ${r.lead.lastName}`,
+      agentName: r.agent?.name ?? null,
+    })),
     generatedAt: new Date().toISOString(),
   })
 }
