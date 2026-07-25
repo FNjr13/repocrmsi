@@ -15,15 +15,15 @@ export default async function ProjectsPage() {
   const projects = await getProjects()
 
   return (
-    <div className="p-8 min-h-screen bg-gray-50">
-      <div className="flex items-center justify-between mb-8">
+    <div className="p-4 sm:p-8 min-h-screen bg-gray-50">
+      <div className="flex items-center justify-between mb-6 sm:mb-8">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Proyectos</h1>
           <p className="text-gray-500 mt-1">{projects.length} proyectos activos</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {projects.map((project) => {
           const statusCfg = STATUS_CONFIG[project.status as keyof typeof STATUS_CONFIG]
           const typeCfg = PROJECT_TYPE_CONFIG[project.type as keyof typeof PROJECT_TYPE_CONFIG]

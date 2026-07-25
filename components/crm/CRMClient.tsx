@@ -1154,7 +1154,7 @@ function LeadPanel({ lead, onClose, onStageChange, onActivityAdded, onTemperatur
   return (
     <>
       <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40" onClick={onClose}/>
-      <div className="fixed right-0 top-0 h-full w-[440px] bg-white z-50 shadow-2xl flex flex-col">
+      <div className="fixed inset-0 sm:inset-auto sm:right-0 sm:top-0 sm:h-full sm:w-[440px] bg-white z-50 shadow-2xl flex flex-col">
         {/* Header */}
         <div className="bg-gradient-to-r from-slate-800 to-slate-700 px-5 py-4 text-white flex-shrink-0">
           <div className="flex items-start justify-between mb-3">
@@ -1735,6 +1735,7 @@ export default function CRMClient({ data, initialFilter }: {
   const [showBulkWA, setShowBulkWA] = useState(false)
   const [scheduleVisitFor, setScheduleVisitFor] = useState<Lead|null>(null)
   const [wonLead, setWonLead] = useState<{ name: string } | null>(null)
+  const [showFilters, setShowFilters] = useState(false)
 
   const handleStageChange = useCallback(async (leadId: string, stage: string) => {
     const lead = leads.find(l => l.id === leadId)
@@ -1948,7 +1949,7 @@ export default function CRMClient({ data, initialFilter }: {
         </div>
 
         {/* Stats strip */}
-        <div className="grid grid-cols-3 sm:grid-cols-7 gap-2 mb-4">
+        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2 mb-4">
           {[
             {label:'Total leads', value:stats.total, sub:'en el CRM', color:'text-gray-700', bg:'bg-gray-50', onClick: undefined},
             {label:'🔥 Hot leads', value:stats.hot, sub:'activos', color:'text-red-600', bg:'bg-red-50', onClick: undefined},
@@ -1980,53 +1981,70 @@ export default function CRMClient({ data, initialFilter }: {
 
         {/* Main filters */}
         {view !== 'stats' && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="relative">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-              <input type="text" placeholder="Buscar por nombre, tel, proyecto..." value={filter.search}
-                onChange={e=>setFilter(f=>({...f,search:e.target.value}))}
-                className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white w-64"/>
+          <div>
+            {/* Mobile: search + toggle */}
+            <div className="flex items-center gap-2 sm:hidden mb-2">
+              <div className="relative flex-1">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                <input type="text" placeholder="Buscar nombre, teléfono..." value={filter.search}
+                  onChange={e=>setFilter(f=>({...f,search:e.target.value}))}
+                  className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white w-full"/>
+              </div>
+              <button onClick={()=>setShowFilters(v=>!v)}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border transition-colors flex-shrink-0 ${showFilters||filter.source||filter.projectId||filter.agentId||filter.temperature?'bg-blue-50 text-blue-600 border-blue-200':'border-gray-200 text-gray-600'}`}>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h18M7 8h10M11 12h2M13 16h-2"/></svg>
+                Filtros
+              </button>
             </div>
-            <select value={filter.source} onChange={e=>setFilter(f=>({...f,source:e.target.value}))}
-              className="text-sm border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-600">
-              <option value="">Todos los canales</option>
-              {[['META','📘 Meta'],['GOOGLE','🔍 Google'],['WHATSAPP','💬 WhatsApp'],['WEB','🌐 Web'],['REFERIDO','👥 Referido'],['OTRO','📌 Otro']].map(([v,l])=><option key={v} value={v}>{l}</option>)}
-            </select>
-            <select value={filter.projectId} onChange={e=>setFilter(f=>({...f,projectId:e.target.value}))}
-              className="text-sm border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none text-gray-600">
-              <option value="">Todos los proyectos</option>
-              {data.projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-            <select value={filter.agentId} onChange={e=>setFilter(f=>({...f,agentId:e.target.value}))}
-              className="text-sm border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none text-gray-600">
-              <option value="">Todo el equipo</option>
-              <optgroup label="🏆 Equipo de Ventas">
-                {data.agents.filter((a:{id:string;name:string;department?:string})=>(a.department||'VENTAS')==='VENTAS').map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
-              </optgroup>
-              <optgroup label="⚙️ Soporte &amp; Gestión">
-                {data.agents.filter((a:{id:string;name:string;department?:string})=>(a.department||'VENTAS')!=='VENTAS').map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
-              </optgroup>
-            </select>
-            {/* Temperature pills */}
-            <div className="flex gap-1 border border-gray-200 rounded-xl p-1 bg-white">
-              <button onClick={()=>setFilter(f=>({...f,temperature:''}))}
-                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${filter.temperature===''?'bg-gray-900 text-white':'text-gray-500 hover:bg-gray-100'}`}>Todos</button>
-              {Object.entries(TEMP_CONFIG).map(([k,c])=>(
-                <button key={k} onClick={()=>setFilter(f=>({...f,temperature:f.temperature===k?'':k}))}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${filter.temperature===k?c.color+' border-current':'border-transparent text-gray-500 hover:bg-gray-100'}`}>
-                  {c.short}
-                </button>
-              ))}
+            {/* Expanded filters: always visible on sm+, toggleable on mobile */}
+            <div className={`${showFilters ? 'flex' : 'hidden'} sm:flex items-center gap-2 flex-wrap`}>
+              <div className="relative hidden sm:block">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                <input type="text" placeholder="Buscar por nombre, tel, proyecto..." value={filter.search}
+                  onChange={e=>setFilter(f=>({...f,search:e.target.value}))}
+                  className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white w-64"/>
+              </div>
+              <select value={filter.source} onChange={e=>setFilter(f=>({...f,source:e.target.value}))}
+                className="text-sm border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-600 flex-1 sm:flex-none min-w-0">
+                <option value="">Todos los canales</option>
+                {[['META','📘 Meta'],['GOOGLE','🔍 Google'],['WHATSAPP','💬 WhatsApp'],['WEB','🌐 Web'],['REFERIDO','👥 Referido'],['OTRO','📌 Otro']].map(([v,l])=><option key={v} value={v}>{l}</option>)}
+              </select>
+              <select value={filter.projectId} onChange={e=>setFilter(f=>({...f,projectId:e.target.value}))}
+                className="text-sm border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none text-gray-600 flex-1 sm:flex-none min-w-0">
+                <option value="">Todos los proyectos</option>
+                {data.projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+              <select value={filter.agentId} onChange={e=>setFilter(f=>({...f,agentId:e.target.value}))}
+                className="text-sm border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none text-gray-600 flex-1 sm:flex-none min-w-0">
+                <option value="">Todo el equipo</option>
+                <optgroup label="🏆 Equipo de Ventas">
+                  {data.agents.filter((a:{id:string;name:string;department?:string})=>(a.department||'VENTAS')==='VENTAS').map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
+                </optgroup>
+                <optgroup label="⚙️ Soporte &amp; Gestión">
+                  {data.agents.filter((a:{id:string;name:string;department?:string})=>(a.department||'VENTAS')!=='VENTAS').map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
+                </optgroup>
+              </select>
+              {/* Temperature pills */}
+              <div className="flex gap-1 border border-gray-200 rounded-xl p-1 bg-white">
+                <button onClick={()=>setFilter(f=>({...f,temperature:''}))}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${filter.temperature===''?'bg-gray-900 text-white':'text-gray-500 hover:bg-gray-100'}`}>Todos</button>
+                {Object.entries(TEMP_CONFIG).map(([k,c])=>(
+                  <button key={k} onClick={()=>setFilter(f=>({...f,temperature:f.temperature===k?'':k}))}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${filter.temperature===k?c.color+' border-current':'border-transparent text-gray-500 hover:bg-gray-100'}`}>
+                    {c.short}
+                  </button>
+                ))}
+              </div>
+              <button onClick={()=>setFilter(f=>({...f,showLost:!f.showLost}))}
+                className={`px-3 py-2 rounded-xl text-xs font-medium border transition-all ${filter.showLost?'bg-red-50 text-red-600 border-red-200':'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+                {filter.showLost?'✕':'+'}  Perdidos
+              </button>
+              {(filter.search||filter.source||filter.projectId||filter.agentId||filter.temperature||filter.preset) && (
+                <button onClick={()=>setFilter({source:'',projectId:'',agentId:'',temperature:'',search:'',showLost:false,showPI:false,preset:''})}
+                  className="text-xs text-blue-500 hover:text-blue-700 font-medium px-2">Limpiar</button>
+              )}
+              <span className="text-xs text-gray-400 ml-auto hidden sm:block">{filteredLeads.length} leads</span>
             </div>
-            <button onClick={()=>setFilter(f=>({...f,showLost:!f.showLost}))}
-              className={`px-3 py-2 rounded-xl text-xs font-medium border transition-all ${filter.showLost?'bg-red-50 text-red-600 border-red-200':'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
-              {filter.showLost?'✕':'+'}  Perdidos
-            </button>
-            {(filter.search||filter.source||filter.projectId||filter.agentId||filter.temperature||filter.preset) && (
-              <button onClick={()=>setFilter({source:'',projectId:'',agentId:'',temperature:'',search:'',showLost:false,showPI:false,preset:''})}
-                className="text-xs text-blue-500 hover:text-blue-700 font-medium px-2">Limpiar</button>
-            )}
-            <span className="text-xs text-gray-400 ml-auto">{filteredLeads.length} leads</span>
           </div>
         )}
       </div>
@@ -2144,7 +2162,7 @@ export default function CRMClient({ data, initialFilter }: {
             </div>
           )}
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-gray-50">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-gray-50 flex-wrap gap-2">
               <div className="flex items-center gap-3">
                 <div onClick={()=>toggleSelectAll(sortedList)} className={`w-4 h-4 rounded border-2 cursor-pointer ${sortedList.every(l=>selectedIds.has(l.id))&&sortedList.length>0?'bg-blue-500 border-blue-500':'border-gray-300'} flex items-center justify-center`}>
                   {sortedList.every(l=>selectedIds.has(l.id))&&sortedList.length>0 && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/></svg>}
@@ -2159,6 +2177,7 @@ export default function CRMClient({ data, initialFilter }: {
                 <option value="createdAt">Más nuevos</option>
               </select>
             </div>
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/50 text-xs text-gray-500 uppercase">
@@ -2229,6 +2248,7 @@ export default function CRMClient({ data, initialFilter }: {
                 <p>No hay leads con estos filtros</p>
               </div>
             )}
+            </div>
           </div>
         </div>
       )}

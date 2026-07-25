@@ -3,6 +3,7 @@ import NotificationCenter from '@/components/ui/NotificationCenter'
 import GlobalSearch from '@/components/ui/GlobalSearch'
 import OnboardingTour from '@/components/ui/OnboardingTour'
 import UserMenu from '@/components/ui/UserMenu'
+import MobileBottomNav from '@/components/ui/MobileBottomNav'
 import { ToastProvider } from '@/components/ui/Toast'
 import { getSession } from '@/lib/session'
 import { isAdminRole } from '@/lib/auth'
@@ -45,11 +46,12 @@ export default async function DashboardLayout({
             <div className="w-px h-6 bg-gray-200 hidden sm:block" />
             <UserMenu name={session?.name ?? 'Usuario'} role={session?.role ?? ''} isGuest={isGuest} />
           </header>
-          <main className="flex-1 overflow-y-auto">
+          <main className="flex-1 overflow-y-auto pb-14 md:pb-0">
             {children}
           </main>
         </div>
       </div>
+      <MobileBottomNav />
       <OnboardingTour />
       <CRMChatbot />
     </ToastProvider>
