@@ -439,10 +439,12 @@ model WebhookLog {
 
 model Notification {
   id        String   @id @default(cuid())
-  type      String   // FOLLOW_UP, NEW_LEAD, VISIT_TODAY, INACTIVITY, STAGE_CHANGE, RESERVATION
+  type      String   // FOLLOW_UP, NEW_LEAD, VISIT_TODAY, INACTIVITY, STAGE_CHANGE, RESERVATION, ADMIN_MESSAGE
   title     String
   message   String
   leadId    String?
+  agentId   String?  // null = todos los usuarios; set = solo este agente
+  sentBy    String?  // nombre del admin que la envió manualmente
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
 }

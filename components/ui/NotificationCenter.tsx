@@ -12,6 +12,7 @@ interface Notification {
   title: string
   message: string
   leadId: string | null
+  sentBy: string | null
   isRead: boolean
   createdAt: string
 }
@@ -24,6 +25,7 @@ const typeColors: Record<string, string> = {
   STAGE_CHANGE: 'bg-green-100 text-green-700',
   RESERVATION: 'bg-emerald-100 text-emerald-700',
   SALE_WON: 'bg-yellow-100 text-yellow-700',
+  ADMIN_MESSAGE: 'bg-indigo-100 text-indigo-700',
 }
 
 const typeIcons: Record<string, string> = {
@@ -34,6 +36,7 @@ const typeIcons: Record<string, string> = {
   STAGE_CHANGE: '📊',
   RESERVATION: '📋',
   SALE_WON: '🏆',
+  ADMIN_MESSAGE: '📣',
 }
 
 function timeAgo(dateStr: string): string {
@@ -200,10 +203,13 @@ export default function NotificationCenter() {
                         <span className="text-[10px] text-gray-400 flex-shrink-0 mt-0.5">{timeAgo(n.createdAt)}</span>
                       </div>
                       <p className="text-xs text-gray-500 mt-0.5 leading-relaxed truncate">{n.message}</p>
+                      {n.type === 'ADMIN_MESSAGE' && n.sentBy && (
+                        <span className="text-xs text-indigo-500 mt-1 inline-block">De: {n.sentBy}</span>
+                      )}
                       {n.type === 'SALE_WON' && (
                         <span className="text-xs text-yellow-600 font-medium mt-1 inline-block">Toca para celebrar 🎊</span>
                       )}
-                      {n.type !== 'SALE_WON' && n.leadId && (
+                      {n.type !== 'SALE_WON' && n.type !== 'ADMIN_MESSAGE' && n.leadId && (
                         <Link
                           href={`/crm/${n.leadId}`}
                           className="text-xs text-blue-600 hover:underline mt-1 inline-block"
