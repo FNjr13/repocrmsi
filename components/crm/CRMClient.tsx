@@ -7,6 +7,7 @@ import Link from 'next/link'
 import dynamic from 'next/dynamic'
 
 const WonCelebration = dynamic(() => import('./WonCelebration'), { ssr: false })
+const WonReservationModal = dynamic(() => import('./WonReservationModal'), { ssr: false })
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Lead = {
@@ -1735,7 +1736,18 @@ export default function CRMClient({ data, initialFilter }: {
   const [showBulkWA, setShowBulkWA] = useState(false)
   const [scheduleVisitFor, setScheduleVisitFor] = useState<Lead|null>(null)
   const [wonLead, setWonLead] = useState<{ name: string } | null>(null)
+  const [wonLeadForReservation, setWonLeadForReservation] = useState<Lead | null>(null)
   const [showFilters, setShowFilters] = useState(false)
+
+  function fireWonCelebration(lead: Lead) {
+    const name = `${lead.firstName} ${lead.lastName}`
+    setWonLead({ name })
+    void fetch('/api/notifications/won', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leadId: lead.id, leadName: name, agentName: lead.agent?.name }),
+    })
+  }
 
   const handleStageChange = useCallback(async (leadId: string, stage: string) => {
     const lead = leads.find(l => l.id === leadId)
@@ -1743,15 +1755,7 @@ export default function CRMClient({ data, initialFilter }: {
     if (selectedLead?.id===leadId) setSelectedLead(prev => prev ? {...prev, stage} : null)
     await fetch(`/api/leads/${leadId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({stage}) })
     if (stage === 'GANADO' && lead) {
-      const name = `${lead.firstName} ${lead.lastName}`
-      setWonLead({ name })
-      // Notify all other users
-      const agentName = lead.agent?.name
-      void fetch('/api/notifications/won', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leadId, leadName: name, agentName }),
-      })
+      setWonLeadForReservation(lead)
     }
   }, [selectedLead, leads, data.agents])
 
@@ -2280,6 +2284,29 @@ export default function CRMClient({ data, initialFilter }: {
       {scheduleVisitFor && (
         <ScheduleVisitModal lead={scheduleVisitFor} agents={data.agents} onClose={()=>setScheduleVisitFor(null)}
           onScheduled={()=>{ setScheduleVisitFor(null) }}/>
+      )}
+
+      {/* ── GANADO: Reservation modal ── */}
+      {wonLeadForReservation && (
+        <WonReservationModal
+          lead={wonLeadForReservation}
+          projects={data.projects}
+          onSuccess={(leadName) => {
+            const lead = wonLeadForReservation
+            setWonLeadForReservation(null)
+            setWonLead({ name: leadName })
+            void fetch('/api/notifications/won', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ leadId: lead.id, leadName, agentName: lead.agent?.name }),
+            })
+          }}
+          onSkip={() => {
+            const lead = wonLeadForReservation
+            setWonLeadForReservation(null)
+            fireWonCelebration(lead)
+          }}
+        />
       )}
 
       {/* ── GANADO Celebration ── */}

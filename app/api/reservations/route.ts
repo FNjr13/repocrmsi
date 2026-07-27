@@ -42,7 +42,36 @@ export async function POST(req: NextRequest) {
   })
 
   // Mark lead as GANADO
-  await prisma.lead.update({ where: { id: body.leadId }, data: { stage: 'GANADO' } })
+  await prisma.lead.update({ where: { id: body.leadId }, data: { stage: 'GANADO', projectId: body.projectId } })
+
+  // Update unit status if a unit was selected
+  if (reservation.unitNumber) {
+    const unitStatusMap: Record<string, string> = {
+      RESERVA:   'RESERVADO',
+      PROMESA:   'CPP',
+      ESCRITURA: 'VENDIDO',
+      ENTREGADO: 'VENDIDO',
+    }
+    const newUnitStatus = unitStatusMap[reservation.stage] || 'RESERVADO'
+    await prisma.projectUnit.updateMany({
+      where: { projectId: body.projectId, unitNumber: reservation.unitNumber },
+      data: { status: newUnitStatus },
+    })
+    // Recalc project counts
+    const counts = await prisma.projectUnit.groupBy({
+      by: ['status'],
+      where: { projectId: body.projectId },
+      _count: { status: true },
+    })
+    const sold = counts.find(c => c.status === 'VENDIDO')?._count.status ?? 0
+    const reserved = (counts.find(c => c.status === 'RESERVADO')?._count.status ?? 0) +
+                     (counts.find(c => c.status === 'CPP')?._count.status ?? 0)
+    const available = counts.find(c => c.status === 'DISPONIBLE')?._count.status ?? 0
+    await prisma.project.update({
+      where: { id: body.projectId },
+      data: { soldUnits: sold, reservedUnits: reserved, availableUnits: available },
+    })
+  }
 
   // Create notification
   await prisma.notification.create({
