@@ -6,7 +6,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ proj
   const { searchParams } = new URL(req.url)
   const from = searchParams.get('from') ? new Date(searchParams.get('from')!) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
   const to = searchParams.get('to') ? new Date(searchParams.get('to')!) : new Date()
-  // Set to end of day
   to.setHours(23, 59, 59, 999)
 
   const [project, leadsInPeriod, activitiesInPeriod, allLeads, reservations] = await Promise.all([
@@ -41,6 +40,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ proj
     prisma.lead.findMany({
       where: { projectId },
       include: { agent: { select: { id: true, name: true } } },
+      orderBy: { updatedAt: 'desc' },
     }),
     prisma.reservation.findMany({
       where: { projectId, reserveDate: { gte: from, lte: to } },
@@ -65,9 +65,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ proj
   const bySource: Record<string, number> = {}
   leadsInPeriod.forEach(l => { bySource[l.source] = (bySource[l.source] || 0) + 1 })
 
-  // Por etapa
+  // Por etapa (período)
   const byStage: Record<string, number> = {}
   leadsInPeriod.forEach(l => { byStage[l.stage] = (byStage[l.stage] || 0) + 1 })
+
+  // Por temperatura (período)
+  const byTemperature: Record<string, number> = {}
+  leadsInPeriod.forEach(l => {
+    const temp = l.temperature ?? 'NORMAL'
+    byTemperature[temp] = (byTemperature[temp] || 0) + 1
+  })
 
   // === ACTIVIDADES DEL PERÍODO ===
   const totalActivities = activitiesInPeriod.length
@@ -101,19 +108,56 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ proj
   })
 
   // === LEADS RECIENTES CON ACTIVIDAD ===
-  const recentLeads = leadsInPeriod.slice(0, 20).map(l => ({
+  const recentLeads = leadsInPeriod.slice(0, 30).map(l => ({
     id: l.id,
     name: `${l.firstName} ${l.lastName}`,
     source: l.source,
     stage: l.stage,
+    temperature: l.temperature ?? null,
+    followUpDate: l.followUpDate ? l.followUpDate.toISOString() : null,
     agent: l.agent?.name ?? null,
     createdAt: l.createdAt,
     activitiesCount: l.activities.filter(a => a.date >= from && a.date <= to).length,
   }))
 
-  // === PIPELINE GENERAL DEL PROYECTO ===
+  // === PIPELINE GENERAL DEL PROYECTO (todos los leads) ===
   const pipelineAll: Record<string, number> = {}
   allLeads.forEach(l => { pipelineAll[l.stage] = (pipelineAll[l.stage] || 0) + 1 })
+
+  // === TEMPERATURA DE TODOS LOS LEADS ACTIVOS ===
+  const activeAllLeads = allLeads.filter(l => !['GANADO', 'PERDIDO'].includes(l.stage))
+  const allLeadsByTemperature: Record<string, number> = { HOT: 0, WARM: 0, NORMAL: 0, COLD: 0 }
+  activeAllLeads.forEach(l => {
+    const temp = l.temperature ?? 'NORMAL'
+    allLeadsByTemperature[temp] = (allLeadsByTemperature[temp] || 0) + 1
+  })
+
+  // === PRÓXIMOS A CERRAR ===
+  const TEMP_ORDER: Record<string, number> = { HOT: 0, WARM: 1, NORMAL: 2, COLD: 3 }
+  const proximosACerrar = activeAllLeads
+    .filter(l => {
+      const temp = l.temperature ?? 'NORMAL'
+      return l.stage === 'NEGOCIACION' || temp === 'HOT' || temp === 'WARM'
+    })
+    .map(l => ({
+      id: l.id,
+      name: `${l.firstName} ${l.lastName}`,
+      stage: l.stage,
+      temperature: l.temperature ?? null,
+      followUpDate: l.followUpDate ? l.followUpDate.toISOString() : null,
+      agent: l.agent?.name ?? null,
+      budget: (l as { budget?: number | null }).budget ?? null,
+    }))
+    .sort((a, b) => {
+      const tA = TEMP_ORDER[a.temperature ?? 'NORMAL'] ?? 2
+      const tB = TEMP_ORDER[b.temperature ?? 'NORMAL'] ?? 2
+      if (tA !== tB) return tA - tB
+      if (a.followUpDate && b.followUpDate) return new Date(a.followUpDate).getTime() - new Date(b.followUpDate).getTime()
+      if (a.followUpDate) return -1
+      if (b.followUpDate) return 1
+      return 0
+    })
+    .slice(0, 25)
 
   return NextResponse.json({
     project: {
@@ -134,6 +178,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ proj
     summary: { totalLeads, wonLeads, lostLeads, activeLeads, conversionRate, totalActivities },
     bySource,
     byStage,
+    byTemperature,
     byActivityType,
     byAgent,
     campaignsInPeriod: campaignsInPeriod.map(c => ({
@@ -143,6 +188,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ proj
     })),
     recentLeads,
     pipelineAll,
+    allLeadsByTemperature,
+    proximosACerrar,
     brokers: project.brokers,
     reservations: reservations.map(r => ({
       id: r.id,

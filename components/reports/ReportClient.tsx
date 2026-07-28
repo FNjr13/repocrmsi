@@ -19,6 +19,10 @@ interface Reservation {
   agentName: string | null
 }
 
+interface ProximoACerrar {
+  id: string; name: string; stage: string; temperature: string | null; followUpDate: string | null; agent: string | null; budget: number | null
+}
+
 interface ReportData {
   project: { name: string; location: string; type: string; progress: number; totalUnits: number; soldUnits: number; reservedUnits: number; availableUnits: number }
   period: { from: string; to: string }
@@ -26,10 +30,14 @@ interface ReportData {
   summary: { totalLeads: number; wonLeads: number; lostLeads: number; activeLeads: number; conversionRate: number; totalActivities: number }
   bySource: Record<string, number>
   byStage: Record<string, number>
+  byTemperature: Record<string, number>
   byActivityType: Record<string, number>
   byAgent: Array<{ id: string; name: string; role: string; department: string; leads: number; won: number; lost: number; active: number; activities: number; conversionRate: number }>
   campaignsInPeriod: Array<{ id: string; name: string; status: string; spent: number; leads: number; clicks: number }>
-  recentLeads: Array<{ id: string; name: string; stage: string; source: string; agent: string | null; activitiesCount: number; createdAt: string }>
+  recentLeads: Array<{ id: string; name: string; stage: string; source: string; agent: string | null; activitiesCount: number; createdAt: string; temperature: string | null; followUpDate: string | null }>
+  pipelineAll: Record<string, number>
+  allLeadsByTemperature: Record<string, number>
+  proximosACerrar: ProximoACerrar[]
   reservations: Reservation[]
 }
 
@@ -44,6 +52,13 @@ const PRESETS = [
 const SOURCE_LABELS: Record<string, string> = { META: 'Meta Ads', GOOGLE: 'Google Ads', WHATSAPP: 'WhatsApp', WEB: 'Web', REFERIDO: 'Referido', OTRO: 'Otro' }
 const SOURCE_ICONS: Record<string, string> = { META: '📘', GOOGLE: '🔍', WHATSAPP: '💬', WEB: '🌐', REFERIDO: '👥', OTRO: '📌' }
 const ACTIVITY_LABELS: Record<string, string> = { LLAMADA: '📞 Llamada', WHATSAPP: '💬 WhatsApp', EMAIL: '✉️ Email', VISITA: '🏠 Visita', NOTA: '📝 Nota', REUNION: '🤝 Reunión' }
+const TEMP_CONFIG: Record<string, { label: string; icon: string; color: string; bg: string; bar: string }> = {
+  HOT:    { label: 'Caliente', icon: '🔥', color: 'text-red-700',    bg: 'bg-red-50 border-red-200',     bar: 'bg-red-400' },
+  WARM:   { label: 'Tibio',    icon: '☀️', color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200', bar: 'bg-orange-400' },
+  NORMAL: { label: 'Normal',   icon: '🌡️', color: 'text-blue-700',   bg: 'bg-blue-50 border-blue-200',   bar: 'bg-blue-400' },
+  COLD:   { label: 'Frío',     icon: '🧊', color: 'text-cyan-700',   bg: 'bg-cyan-50 border-cyan-200',   bar: 'bg-cyan-400' },
+}
+
 const RESERVATION_STAGE: Record<string, { label: string; color: string }> = {
   RESERVA:   { label: 'Separación',  color: 'bg-amber-100 text-amber-700' },
   PROMESA:   { label: 'Promesa/CPP', color: 'bg-purple-100 text-purple-700' },
@@ -347,6 +362,37 @@ export default function ReportClient({ projects }: { projects: Project[] }) {
               </div>
             </div>
 
+            {/* Temperatura de leads activos */}
+            {(() => {
+              const temps = ['HOT', 'WARM', 'NORMAL', 'COLD']
+              const total = temps.reduce((s, t) => s + (report.allLeadsByTemperature[t] || 0), 0)
+              return (
+                <div>
+                  <h2 className="text-base font-bold text-gray-900 mb-3">🌡️ Temperatura de leads activos</h2>
+                  <div className="grid grid-cols-4 gap-4">
+                    {temps.map(t => {
+                      const cfg = TEMP_CONFIG[t]
+                      const count = report.allLeadsByTemperature[t] || 0
+                      const pct = total > 0 ? Math.round((count / total) * 100) : 0
+                      return (
+                        <div key={t} className={`border rounded-xl p-4 ${cfg.bg}`}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-2xl">{cfg.icon}</span>
+                            <span className={`text-sm font-semibold ${cfg.color}`}>{cfg.label}</span>
+                          </div>
+                          <div className={`text-3xl font-bold ${cfg.color}`}>{count}</div>
+                          <div className="text-xs text-gray-500 mt-0.5">{pct}% del total activo</div>
+                          <div className="w-full h-1.5 bg-white/60 rounded-full mt-2">
+                            <div className={`h-full ${cfg.bar} rounded-full`} style={{ width: `${pct}%` }} />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })()}
+
             <div className="grid grid-cols-2 gap-6">
               {/* Leads por fuente */}
               <div className="bg-white rounded-xl border border-gray-200 p-5">
@@ -377,18 +423,20 @@ export default function ReportClient({ projects }: { projects: Project[] }) {
                 )}
               </div>
 
-              {/* Pipeline del período */}
+              {/* Pipeline completo del proyecto */}
               <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <h2 className="text-base font-bold text-gray-900 mb-4">🔄 Estado de leads del período</h2>
-                {Object.keys(report.byStage).length === 0 ? (
-                  <p className="text-sm text-gray-400 text-center py-4">Sin leads en este período</p>
+                <h2 className="text-base font-bold text-gray-900 mb-1">🔄 Pipeline total del proyecto</h2>
+                <p className="text-xs text-gray-400 mb-4">Todos los leads, sin filtro de fecha</p>
+                {Object.keys(report.pipelineAll).length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-4">Sin leads registrados</p>
                 ) : (
                   <div className="space-y-2">
-                    {Object.entries(report.byStage)
+                    {Object.entries(report.pipelineAll)
                       .sort(([,a],[,b]) => (b as number) - (a as number))
                       .map(([stage, count]) => {
                         const cfg = STAGE_CONFIG[stage as keyof typeof STAGE_CONFIG]
-                        const pct = report.summary.totalLeads > 0 ? Math.round(((count as number) / report.summary.totalLeads) * 100) : 0
+                        const total = Object.values(report.pipelineAll).reduce((s, v) => s + (v as number), 0)
+                        const pct = total > 0 ? Math.round(((count as number) / total) * 100) : 0
                         return (
                           <div key={stage} className="flex items-center justify-between p-2.5 rounded-lg bg-gray-50">
                             <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${cfg?.color || 'bg-gray-100 text-gray-700'}`}>
@@ -515,27 +563,96 @@ export default function ReportClient({ projects }: { projects: Project[] }) {
               </div>
             </div>
 
+            {/* Próximos a cerrar */}
+            {report.proximosACerrar.length > 0 && (
+              <div className="bg-white rounded-xl border border-gray-200 p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h2 className="text-base font-bold text-gray-900">🎯 Próximos a cerrar</h2>
+                    <p className="text-xs text-gray-400 mt-0.5">Leads en negociación o con temperatura alta/media</p>
+                  </div>
+                  <span className="text-sm font-semibold text-gray-500 bg-orange-50 border border-orange-200 px-3 py-1 rounded-full">
+                    {report.proximosACerrar.length} leads
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200 text-xs text-gray-500 uppercase">
+                        <th className="text-left pb-2 pr-4">Nombre</th>
+                        <th className="text-left pb-2 pr-4">Temp.</th>
+                        <th className="text-left pb-2 pr-4">Etapa</th>
+                        <th className="text-left pb-2 pr-4">Asesor/a</th>
+                        <th className="text-left pb-2">Próximo contacto</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {report.proximosACerrar.map(l => {
+                        const stageCfg = STAGE_CONFIG[l.stage as keyof typeof STAGE_CONFIG]
+                        const tempCfg = l.temperature ? TEMP_CONFIG[l.temperature] : null
+                        const followUp = l.followUpDate ? new Date(l.followUpDate) : null
+                        const isOverdue = followUp && followUp < new Date()
+                        return (
+                          <tr key={l.id} className="hover:bg-gray-50/50">
+                            <td className="py-2.5 pr-4 font-semibold text-gray-800">{l.name}</td>
+                            <td className="py-2.5 pr-4">
+                              {tempCfg ? (
+                                <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${tempCfg.bg} ${tempCfg.color}`}>
+                                  {tempCfg.icon} {tempCfg.label}
+                                </span>
+                              ) : <span className="text-gray-400">—</span>}
+                            </td>
+                            <td className="py-2.5 pr-4">
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${stageCfg?.color || 'bg-gray-100 text-gray-700'}`}>
+                                {stageCfg?.label || l.stage}
+                              </span>
+                            </td>
+                            <td className="py-2.5 pr-4 text-gray-600">{l.agent || '—'}</td>
+                            <td className="py-2.5">
+                              {followUp ? (
+                                <span className={`text-xs font-medium ${isOverdue ? 'text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-200' : 'text-gray-600'}`}>
+                                  {isOverdue ? '⚠️ ' : ''}{formatDate(followUp.toISOString())}
+                                </span>
+                              ) : <span className="text-gray-400 text-xs">Sin fecha</span>}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
             {/* Leads del período - tabla */}
             {report.recentLeads.length > 0 && (
               <div className="bg-white rounded-xl border border-gray-200 p-5">
                 <h2 className="text-base font-bold text-gray-900 mb-4">👤 Leads del período ({report.recentLeads.length})</h2>
+                <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-200 text-xs text-gray-500 uppercase">
                       <th className="text-left pb-2 pr-4">Nombre</th>
+                      <th className="text-left pb-2 pr-4">Temp.</th>
                       <th className="text-left pb-2 pr-4">Fuente</th>
                       <th className="text-left pb-2 pr-4">Etapa</th>
                       <th className="text-left pb-2 pr-4">Asesora</th>
-                      <th className="text-left pb-2 pr-4">Actividades</th>
+                      <th className="text-left pb-2 pr-4">Act.</th>
                       <th className="text-left pb-2">Ingreso</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {(report.recentLeads as Array<{ id: string; name: string; stage: string; source: string; agent: string | null; activitiesCount: number; createdAt: string }>).map(l => {
+                    {report.recentLeads.map(l => {
                       const stageCfg = STAGE_CONFIG[l.stage as keyof typeof STAGE_CONFIG]
+                      const tempCfg = l.temperature ? TEMP_CONFIG[l.temperature] : null
                       return (
                         <tr key={l.id}>
                           <td className="py-2.5 pr-4 font-medium text-gray-800">{l.name}</td>
+                          <td className="py-2.5 pr-4">
+                            {tempCfg ? (
+                              <span title={tempCfg.label}>{tempCfg.icon}</span>
+                            ) : <span className="text-gray-300">—</span>}
+                          </td>
                           <td className="py-2.5 pr-4 text-gray-500">{SOURCE_ICONS[l.source]} {SOURCE_LABELS[l.source] || l.source}</td>
                           <td className="py-2.5 pr-4">
                             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${stageCfg?.color || 'bg-gray-100 text-gray-700'}`}>
@@ -552,6 +669,7 @@ export default function ReportClient({ projects }: { projects: Project[] }) {
                     })}
                   </tbody>
                 </table>
+                </div>
               </div>
             )}
 
