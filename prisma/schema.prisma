@@ -38,8 +38,9 @@ model Project {
   goalItems         ProjectGoalItem[]
   reservationForms  ReservationForm[]
   marketingRecords  MarketingRecord[]
-  brokerProjects BrokerProject[]
-  changelogs     ProjectChangelog[]
+  brokerProjects    BrokerProject[]
+  changelogs        ProjectChangelog[]
+  manualCommissions ManualCommission[]
 }
 
 model ProjectChangelog {
@@ -124,6 +125,7 @@ model Agent {
   whatsappConfig    WhatsAppConfig?
   whatsappMessages  WhatsAppMessage[]
   messageTemplates  MessageTemplate[]
+  manualCommissions ManualCommission[]
 }
 
 model CalendarEvent {
@@ -578,4 +580,26 @@ model MessageTemplate {
   updatedAt DateTime @updatedAt
 
   agent Agent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
+}
+
+// ─── Comisiones manuales ──────────────────────────────────────────────────────
+model ManualCommission {
+  id               String   @id @default(cuid())
+  clientName       String
+  projectId        String?
+  agentId          String?
+  unitNumber       String?
+  description      String?
+  salePrice        Float?
+  currency         String   @default("USD")
+  commissionPct    Float?
+  commissionAmount Float
+  status           String   @default("PENDIENTE") // PENDIENTE, APROBADA, PAGADA
+  commissionDate   DateTime @default(now())
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  agent   Agent?   @relation(fields: [agentId], references: [id], onDelete: SetNull)
 }
