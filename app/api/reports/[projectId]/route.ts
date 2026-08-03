@@ -203,6 +203,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ proj
       reserveDate: r.reserveDate,
       clientName: `${r.lead.firstName} ${r.lead.lastName}`,
       agentName: r.agent?.name ?? null,
+      commissionPct: r.commissionPct,
+      commissionAmount: r.price * r.commissionPct / 100,
+      commissionStatus: r.commissionStatus,
     })),
     generatedAt: new Date().toISOString(),
   })

@@ -17,6 +17,9 @@ interface Reservation {
   reserveDate: string
   clientName: string
   agentName: string | null
+  commissionPct: number
+  commissionAmount: number
+  commissionStatus: string
 }
 
 interface ProximoACerrar {
@@ -684,46 +687,87 @@ export default function ReportClient({ projects }: { projects: Project[] }) {
               {report.reservations.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-6">No hay separaciones registradas en este período</p>
               ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-200 text-xs text-gray-500 uppercase">
-                      <th className="text-left pb-2 pr-4"># Lote / Unidad</th>
-                      <th className="text-left pb-2 pr-4">Nombre del cliente</th>
-                      <th className="text-left pb-2 pr-4">Asesor</th>
-                      <th className="text-left pb-2 pr-4">Tipo</th>
-                      <th className="text-left pb-2 pr-4">Precio</th>
-                      <th className="text-left pb-2 pr-4">Etapa</th>
-                      <th className="text-left pb-2">Fecha</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {report.reservations.map(r => {
-                      const stageCfg = RESERVATION_STAGE[r.stage] ?? { label: r.stage, color: 'bg-gray-100 text-gray-700' }
-                      return (
-                        <tr key={r.id} className="hover:bg-gray-50/50">
-                          <td className="py-2.5 pr-4">
-                            <span className="font-bold text-gray-900 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg text-sm">
-                              {r.unitNumber ?? '—'}
-                            </span>
-                            {r.floor && <span className="text-xs text-gray-400 ml-1.5">Piso {r.floor}</span>}
-                          </td>
-                          <td className="py-2.5 pr-4 font-semibold text-gray-800">{r.clientName}</td>
-                          <td className="py-2.5 pr-4 text-gray-600">{r.agentName ?? '—'}</td>
-                          <td className="py-2.5 pr-4 text-gray-500 text-xs">{r.unitType ?? '—'}{r.area ? ` · ${r.area}m²` : ''}</td>
-                          <td className="py-2.5 pr-4 font-semibold text-green-700">
-                            {r.currency === 'USD' ? '$' : r.currency}{r.price.toLocaleString()}
-                          </td>
-                          <td className="py-2.5 pr-4">
-                            <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${stageCfg.color}`}>
-                              {stageCfg.label}
-                            </span>
-                          </td>
-                          <td className="py-2.5 text-gray-500">{formatDate(r.reserveDate)}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
+                <>
+                  {/* Commission summary strip */}
+                  {(() => {
+                    const totalComm = report.reservations.reduce((s, r) => s + r.commissionAmount, 0)
+                    const pendiente = report.reservations.filter(r => r.commissionStatus === 'PENDIENTE')
+                    const aprobada  = report.reservations.filter(r => r.commissionStatus === 'APROBADA')
+                    const pagada    = report.reservations.filter(r => r.commissionStatus === 'PAGADA')
+                    return (
+                      <div className="grid grid-cols-4 gap-3 mb-4">
+                        {[
+                          { label: 'Total comisiones', count: report.reservations.length, amt: totalComm, color: 'text-gray-900',    bg: 'bg-gray-50' },
+                          { label: 'Pendiente',        count: pendiente.length, amt: pendiente.reduce((s,r)=>s+r.commissionAmount,0), color: 'text-yellow-700', bg: 'bg-yellow-50' },
+                          { label: 'Aprobada',         count: aprobada.length,  amt: aprobada.reduce((s,r)=>s+r.commissionAmount,0),  color: 'text-blue-700',   bg: 'bg-blue-50' },
+                          { label: 'Pagada',           count: pagada.length,    amt: pagada.reduce((s,r)=>s+r.commissionAmount,0),    color: 'text-green-700',  bg: 'bg-green-50' },
+                        ].map(k => (
+                          <div key={k.label} className={`${k.bg} rounded-lg p-3 text-center`}>
+                            <div className={`text-lg font-bold ${k.color}`}>
+                              ${k.amt.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-0.5">{k.label} ({k.count})</div>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })()}
+
+                  <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200 text-xs text-gray-500 uppercase">
+                        <th className="text-left pb-2 pr-4"># Lote / Unidad</th>
+                        <th className="text-left pb-2 pr-4">Cliente</th>
+                        <th className="text-left pb-2 pr-4">Asesor/a</th>
+                        <th className="text-left pb-2 pr-4">Precio</th>
+                        <th className="text-left pb-2 pr-4">% Com.</th>
+                        <th className="text-left pb-2 pr-4">Monto com.</th>
+                        <th className="text-left pb-2 pr-4">Estado com.</th>
+                        <th className="text-left pb-2 pr-4">Etapa</th>
+                        <th className="text-left pb-2">Fecha</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {report.reservations.map(r => {
+                        const stageCfg = RESERVATION_STAGE[r.stage] ?? { label: r.stage, color: 'bg-gray-100 text-gray-700' }
+                        const commStatusColor = r.commissionStatus === 'PAGADA' ? 'bg-green-100 text-green-700' : r.commissionStatus === 'APROBADA' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'
+                        const commStatusLabel = r.commissionStatus === 'PAGADA' ? 'Pagada' : r.commissionStatus === 'APROBADA' ? 'Aprobada' : 'Pendiente'
+                        return (
+                          <tr key={r.id} className="hover:bg-gray-50/50">
+                            <td className="py-2.5 pr-4">
+                              <span className="font-bold text-gray-900 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg text-sm">
+                                {r.unitNumber ?? '—'}
+                              </span>
+                              {r.floor && <span className="text-xs text-gray-400 ml-1.5">Piso {r.floor}</span>}
+                            </td>
+                            <td className="py-2.5 pr-4 font-semibold text-gray-800">{r.clientName}</td>
+                            <td className="py-2.5 pr-4 text-gray-600">{r.agentName ?? '—'}</td>
+                            <td className="py-2.5 pr-4 font-semibold text-gray-900">
+                              {r.currency === 'USD' ? '$' : r.currency === 'UF' ? 'UF ' : r.currency === 'EUR' ? '€' : '$'}{r.price.toLocaleString()}{r.currency === 'CLP' ? ' CLP' : ''}
+                            </td>
+                            <td className="py-2.5 pr-4 text-gray-700 font-medium">{r.commissionPct}%</td>
+                            <td className="py-2.5 pr-4 font-bold text-green-700">
+                              ${r.commissionAmount.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                            </td>
+                            <td className="py-2.5 pr-4">
+                              <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${commStatusColor}`}>
+                                {commStatusLabel}
+                              </span>
+                            </td>
+                            <td className="py-2.5 pr-4">
+                              <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${stageCfg.color}`}>
+                                {stageCfg.label}
+                              </span>
+                            </td>
+                            <td className="py-2.5 text-gray-500">{formatDate(r.reserveDate)}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                  </div>
+                </>
               )}
             </div>
 
