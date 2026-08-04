@@ -48,6 +48,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
+    "@types/nodemailer": "^6.4.17",
     "ts-node": "^10.9.2",
     "typescript": "^5"
   }
