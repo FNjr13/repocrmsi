@@ -126,6 +126,7 @@ model Agent {
   whatsappMessages  WhatsAppMessage[]
   messageTemplates  MessageTemplate[]
   manualCommissions ManualCommission[]
+  pasosDeRed        PasoDeRed[]
 }
 
 model CalendarEvent {
@@ -602,4 +603,29 @@ model ManualCommission {
 
   project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
   agent   Agent?   @relation(fields: [agentId], references: [id], onDelete: SetNull)
+}
+
+// ─── Paso de Red ──────────────────────────────────────────────────────────────
+model PasoDeRed {
+  id               String   @id @default(cuid())
+  clientName       String
+  clientPhone      String?
+  clientEmail      String?
+  source           String   @default("OTRO") // INSTAGRAM, FACEBOOK, TIKTOK, WHATSAPP, YOUTUBE, REFERIDO, OTRO
+  referredBy       String?  // nombre de quien refirió
+  jobType          String   @default("OTRO") // CONSTRUCCION, REMODELACION, SERVICIO, OTRO
+  description      String?
+  amount           Float?   // monto total del trabajo
+  currency         String   @default("USD")
+  commissionPct    Float?
+  commissionAmount Float?
+  status           String   @default("NUEVO") // NUEVO, EN_PROCESO, COMPLETADO, CANCELADO
+  startDate        DateTime?
+  endDate          DateTime?
+  agentId          String?
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  agent Agent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
 }
