@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { Resend } from 'resend'
+import nodemailer from 'nodemailer'
 
 export const maxDuration = 60
 
@@ -12,7 +12,6 @@ export async function GET(req: NextRequest) {
   return runBackup()
 }
 
-// Also allow POST for manual trigger from the UI
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   if (body.secret !== process.env.CRON_SECRET) {
@@ -22,21 +21,25 @@ export async function POST(req: NextRequest) {
 }
 
 async function runBackup() {
-  const apiKey = process.env.RESEND_API_KEY
-  const toEmail = process.env.BACKUP_EMAIL
+  const gmailUser = process.env.GMAIL_USER
+  const gmailPass = process.env.GMAIL_APP_PASSWORD
+  const toEmail   = process.env.BACKUP_EMAIL || gmailUser
 
-  if (!apiKey)  return NextResponse.json({ error: 'NO_RESEND_KEY' }, { status: 500 })
-  if (!toEmail) return NextResponse.json({ error: 'NO_BACKUP_EMAIL' }, { status: 500 })
+  if (!gmailUser || !gmailPass) {
+    return NextResponse.json({ error: 'Faltan GMAIL_USER o GMAIL_APP_PASSWORD en las variables de entorno' }, { status: 500 })
+  }
 
-  const now = new Date()
+  const now     = new Date()
   const dateStr = now.toISOString().slice(0, 10)
   const timeStr = now.toLocaleString('es-PA', { timeZone: 'America/Panama', dateStyle: 'full', timeStyle: 'short' })
 
+  // ── Recoger todos los datos ──────────────────────────────────────────────
   const [
     leads, projects, units, reservations,
     agents, events, activities, campaigns,
     documents, brokers, brokerProjects, brokerActivities,
     sequences, automations, marketingRecords,
+    manualCommissions, pasosDeRed,
   ] = await Promise.all([
     prisma.lead.findMany({ orderBy: { createdAt: 'desc' } }),
     prisma.project.findMany(),
@@ -53,81 +56,120 @@ async function runBackup() {
     prisma.automationSequence.findMany({ include: { steps: true } }),
     prisma.automationRule.findMany(),
     prisma.marketingRecord.findMany(),
+    prisma.manualCommission.findMany({ orderBy: { createdAt: 'desc' } }),
+    prisma.pasoDeRed.findMany({ orderBy: { createdAt: 'desc' } }),
   ])
 
   const counts = {
-    leads: leads.length, projects: projects.length, units: units.length,
-    reservations: reservations.length, agents: agents.length, events: events.length,
-    activities: activities.length, campaigns: campaigns.length, documents: documents.length,
-    brokers: brokers.length, brokerProjects: brokerProjects.length,
-    brokerActivities: brokerActivities.length, sequences: sequences.length,
-    automations: automations.length, marketingRecords: marketingRecords.length,
+    leads:             leads.length,
+    projects:          projects.length,
+    units:             units.length,
+    reservations:      reservations.length,
+    agents:            agents.length,
+    events:            events.length,
+    activities:        activities.length,
+    campaigns:         campaigns.length,
+    documents:         documents.length,
+    brokers:           brokers.length,
+    brokerProjects:    brokerProjects.length,
+    brokerActivities:  brokerActivities.length,
+    sequences:         sequences.length,
+    automations:       automations.length,
+    marketingRecords:  marketingRecords.length,
+    manualCommissions: manualCommissions.length,
+    pasosDeRed:        pasosDeRed.length,
   }
 
+  const totalRecords = Object.values(counts).reduce((a, b) => a + b, 0)
+
   const backup = {
-    meta: { version: '1.0', generatedAt: now.toISOString(), platform: 'SI CRM', counts },
-    data: { leads, projects, units, reservations, agents, events, activities, campaigns, documents, brokers, brokerProjects, brokerActivities, sequences, automations, marketingRecords },
+    meta: { version: '2.0', generatedAt: now.toISOString(), platform: 'SI CRM', counts },
+    data: {
+      leads, projects, units, reservations, agents, events, activities,
+      campaigns, documents, brokers, brokerProjects, brokerActivities,
+      sequences, automations, marketingRecords, manualCommissions, pasosDeRed,
+    },
   }
 
   const jsonContent = JSON.stringify(backup, null, 2)
-  const totalRecords = Object.values(counts).reduce((a, b) => a + b, 0)
 
-  const resend = new Resend(apiKey)
+  // ── Enviar email ─────────────────────────────────────────────────────────
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: { user: gmailUser, pass: gmailPass },
+  })
+
+  const row = (label: string, value: number) =>
+    `<tr style="border-bottom:1px solid #f3f4f6">
+       <td style="padding:5px 12px 5px 0;color:#6b7280;font-size:13px">${label}</td>
+       <td style="font-weight:600;text-align:right;font-size:13px">${value.toLocaleString()}</td>
+     </tr>`
 
   const html = `
-    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#1f2937">
-      <div style="background:linear-gradient(135deg,#1e40af,#4f46e5);padding:24px 32px;border-radius:12px 12px 0 0">
-        <h1 style="color:white;margin:0;font-size:22px">🛡️ Backup Automático — SI CRM</h1>
-        <p style="color:#bfdbfe;margin:6px 0 0;font-size:14px">${timeStr}</p>
-      </div>
-      <div style="background:#f9fafb;padding:24px 32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px">
-        <p style="margin:0 0 16px">El backup diario se generó exitosamente. Se adjunta el archivo con todos los datos.</p>
+    <div style="font-family:Arial,sans-serif;max-width:580px;margin:0 auto;color:#1f2937">
 
-        <div style="background:white;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:16px">
-          <h3 style="margin:0 0 12px;font-size:14px;color:#374151">🗄️ Base de Datos — ${totalRecords.toLocaleString()} registros totales</h3>
-          <table style="width:100%;font-size:13px;border-collapse:collapse">
-            <tr style="border-bottom:1px solid #f3f4f6"><td style="padding:4px 8px 4px 0;color:#6b7280">Leads</td><td style="font-weight:600;text-align:right">${counts.leads}</td></tr>
-            <tr style="border-bottom:1px solid #f3f4f6"><td style="padding:4px 8px 4px 0;color:#6b7280">Proyectos</td><td style="font-weight:600;text-align:right">${counts.projects}</td></tr>
-            <tr style="border-bottom:1px solid #f3f4f6"><td style="padding:4px 8px 4px 0;color:#6b7280">Unidades / Lotes</td><td style="font-weight:600;text-align:right">${counts.units}</td></tr>
-            <tr style="border-bottom:1px solid #f3f4f6"><td style="padding:4px 8px 4px 0;color:#6b7280">Reservas / CPP</td><td style="font-weight:600;text-align:right">${counts.reservations}</td></tr>
-            <tr style="border-bottom:1px solid #f3f4f6"><td style="padding:4px 8px 4px 0;color:#6b7280">Brokers externos</td><td style="font-weight:600;text-align:right">${counts.brokers}</td></tr>
-            <tr style="border-bottom:1px solid #f3f4f6"><td style="padding:4px 8px 4px 0;color:#6b7280">Actividades</td><td style="font-weight:600;text-align:right">${counts.activities}</td></tr>
-            <tr><td style="padding:4px 8px 4px 0;color:#6b7280">Eventos / Citas</td><td style="font-weight:600;text-align:right">${counts.events}</td></tr>
+      <div style="background:linear-gradient(135deg,#1e40af,#4338ca);padding:28px 32px;border-radius:12px 12px 0 0">
+        <h1 style="color:white;margin:0;font-size:22px;font-weight:700">🛡️ Backup diario — SI CRM</h1>
+        <p style="color:#bfdbfe;margin:8px 0 0;font-size:14px">${timeStr}</p>
+      </div>
+
+      <div style="background:#f9fafb;padding:24px 32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px">
+
+        <p style="margin:0 0 20px;font-size:14px;color:#374151">
+          El backup diario se generó correctamente. El archivo JSON con todos los datos va adjunto a este correo.
+        </p>
+
+        <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;padding:18px;margin-bottom:16px">
+          <h3 style="margin:0 0 12px;font-size:14px;font-weight:700;color:#111827">
+            🗄️ Base de datos — <span style="color:#2563eb">${totalRecords.toLocaleString()} registros totales</span>
+          </h3>
+          <table style="width:100%;border-collapse:collapse">
+            ${row('Leads / Clientes',       counts.leads)}
+            ${row('Proyectos',              counts.projects)}
+            ${row('Unidades / Lotes',       counts.units)}
+            ${row('Separaciones / CPP',     counts.reservations)}
+            ${row('Asesores',               counts.agents)}
+            ${row('Brokers externos',       counts.brokers)}
+            ${row('Actividades',            counts.activities)}
+            ${row('Eventos / Citas',        counts.events)}
+            ${row('Comisiones manuales',    counts.manualCommissions)}
+            ${row('Pasos de red',           counts.pasosDeRed)}
+            ${row('Campañas de marketing',  counts.campaigns)}
+            ${row('Documentos',             counts.documents)}
           </table>
         </div>
 
-        <div style="background:white;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:16px">
-          <h3 style="margin:0 0 8px;font-size:14px;color:#374151">💻 Plataforma</h3>
-          <p style="margin:0;font-size:13px;color:#6b7280">
-            Repositorio: <a href="https://github.com/FNjr13/repocrmsi" style="color:#2563eb">github.com/FNjr13/repocrmsi</a><br>
-            Descargar ZIP: <a href="https://github.com/FNjr13/repocrmsi/archive/refs/heads/main.zip" style="color:#2563eb">main.zip</a>
+        <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;padding:18px;margin-bottom:16px">
+          <h3 style="margin:0 0 10px;font-size:14px;font-weight:700;color:#111827">💻 Código fuente</h3>
+          <p style="margin:0;font-size:13px;color:#6b7280;line-height:1.6">
+            Repositorio en GitHub:<br>
+            <a href="https://github.com/FNjr13/repocrmsi" style="color:#2563eb">github.com/FNjr13/repocrmsi</a><br><br>
+            Descargar ZIP del código:<br>
+            <a href="https://github.com/FNjr13/repocrmsi/archive/refs/heads/main.zip" style="color:#2563eb">main.zip (siempre actualizado)</a>
           </p>
         </div>
 
-        <p style="margin:0;font-size:12px;color:#9ca3af">
-          Enviado automáticamente todos los días a las 11:00 PM hora de Panamá.<br>
-          Guarda el archivo adjunto en Google Drive o Dropbox.
+        <p style="margin:16px 0 0;font-size:12px;color:#9ca3af;line-height:1.6">
+          📎 Archivo adjunto: <strong>si-crm-backup-${dateStr}.json</strong><br>
+          Se recomienda guardar una copia en Google Drive o Dropbox.<br>
+          Enviado automáticamente todos los días a las 11:00 PM (hora Panamá).
         </p>
+
       </div>
     </div>
   `
 
-  const result = await resend.emails.send({
-    from: 'SI CRM Backups <onboarding@resend.dev>',
-    to: [toEmail],
-    subject: `🛡️ Backup SI CRM — ${dateStr}`,
+  await transporter.sendMail({
+    from:        `"SI CRM Backups" <${gmailUser}>`,
+    to:          toEmail,
+    subject:     `🛡️ Backup SI CRM — ${dateStr} — ${totalRecords.toLocaleString()} registros`,
     html,
-    attachments: [
-      {
-        filename: `si-crm-backup-${dateStr}.json`,
-        content: Buffer.from(jsonContent, 'utf-8'),
-      },
-    ],
+    attachments: [{
+      filename:    `si-crm-backup-${dateStr}.json`,
+      content:     Buffer.from(jsonContent, 'utf-8'),
+      contentType: 'application/json',
+    }],
   })
 
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: 500 })
-  }
-
-  return NextResponse.json({ ok: true, date: dateStr, emailId: result.data?.id, counts })
+  return NextResponse.json({ ok: true, date: dateStr, to: toEmail, totalRecords, counts })
 }

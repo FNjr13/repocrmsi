@@ -7,7 +7,7 @@ export async function GET() {
     agents, events, activities, campaigns,
     documents, brokers, brokerProjects, brokerActivities,
     sequences, automations, marketingRecords,
-    auditLogs,
+    manualCommissions, pasosDeRed, auditLogs,
   ] = await Promise.all([
     prisma.lead.findMany({ orderBy: { createdAt: 'desc' } }),
     prisma.project.findMany(),
@@ -24,12 +24,14 @@ export async function GET() {
     prisma.automationSequence.findMany({ include: { steps: true } }),
     prisma.automationRule.findMany(),
     prisma.marketingRecord.findMany(),
+    prisma.manualCommission.findMany({ orderBy: { createdAt: 'desc' } }),
+    prisma.pasoDeRed.findMany({ orderBy: { createdAt: 'desc' } }),
     prisma.auditLog.findMany({ orderBy: { createdAt: 'desc' }, take: 5000 }),
   ])
 
   const backup = {
     meta: {
-      version: '1.0',
+      version: '2.0',
       generatedAt: new Date().toISOString(),
       platform: 'SI CRM',
       counts: {
@@ -48,26 +50,16 @@ export async function GET() {
         sequences: sequences.length,
         automations: automations.length,
         marketingRecords: marketingRecords.length,
+        manualCommissions: manualCommissions.length,
+        pasosDeRed: pasosDeRed.length,
         auditLogs: auditLogs.length,
       },
     },
     data: {
-      leads,
-      projects,
-      units,
-      reservations,
-      agents,
-      events,
-      activities,
-      campaigns,
-      documents,
-      brokers,
-      brokerProjects,
-      brokerActivities,
-      sequences,
-      automations,
-      marketingRecords,
-      auditLogs,
+      leads, projects, units, reservations, agents, events, activities,
+      campaigns, documents, brokers, brokerProjects, brokerActivities,
+      sequences, automations, marketingRecords,
+      manualCommissions, pasosDeRed, auditLogs,
     },
   }
 
