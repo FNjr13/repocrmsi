@@ -94,9 +94,13 @@ async function runBackup() {
   const jsonContent = JSON.stringify(backup, null, 2)
 
   // ── Enviar email ─────────────────────────────────────────────────────────
+  // Usar SMTP explícito (más fiable en servidores que service:'gmail')
+  const cleanPass = gmailPass.replace(/\s/g, '') // elimina espacios si los tiene
   const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: { user: gmailUser, pass: gmailPass },
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
+    auth: { user: gmailUser, pass: cleanPass },
   })
 
   const row = (label: string, value: number) =>
@@ -159,17 +163,22 @@ async function runBackup() {
     </div>
   `
 
-  await transporter.sendMail({
-    from:        `"SI CRM Backups" <${gmailUser}>`,
-    to:          toEmail,
-    subject:     `🛡️ Backup SI CRM — ${dateStr} — ${totalRecords.toLocaleString()} registros`,
-    html,
-    attachments: [{
-      filename:    `si-crm-backup-${dateStr}.json`,
-      content:     Buffer.from(jsonContent, 'utf-8'),
-      contentType: 'application/json',
-    }],
-  })
+  try {
+    await transporter.sendMail({
+      from:        `"SI CRM Backups" <${gmailUser}>`,
+      to:          toEmail,
+      subject:     `🛡️ Backup SI CRM — ${dateStr} — ${totalRecords.toLocaleString()} registros`,
+      html,
+      attachments: [{
+        filename:    `si-crm-backup-${dateStr}.json`,
+        content:     Buffer.from(jsonContent, 'utf-8'),
+        contentType: 'application/json',
+      }],
+    })
+  } catch (emailError: unknown) {
+    const msg = emailError instanceof Error ? emailError.message : String(emailError)
+    return NextResponse.json({ error: 'EMAIL_FAILED', detail: msg, counts }, { status: 500 })
+  }
 
   return NextResponse.json({ ok: true, date: dateStr, to: toEmail, totalRecords, counts })
 }

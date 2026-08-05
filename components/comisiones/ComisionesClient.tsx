@@ -340,6 +340,13 @@ function CommissionForm({
         )}
       </div>
 
+      {!d.clientName && (
+        <p className="text-xs text-red-500 -mt-1">⚠️ El nombre del cliente es obligatorio</p>
+      )}
+      {d.clientName && !d.commissionAmount && (
+        <p className="text-xs text-red-500 -mt-1">⚠️ Ingresa el monto de comisión para continuar</p>
+      )}
+
       <div className="flex gap-3 pt-2">
         <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
           Cancelar
@@ -367,6 +374,7 @@ export default function ComisionesClient({ projects, agents }: { projects: Proje
   const [editing, setEditing] = useState<Commission | null>(null)
   const [formData, setFormData] = useState<FormData>(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
   // Filters
@@ -441,37 +449,10 @@ export default function ComisionesClient({ projects, agents }: { projects: Proje
 
   async function handleCreate(d: FormData) {
     setSaving(true)
-    const res = await fetch('/api/manual-commissions', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        clientName:       d.clientName,
-        projectId:        d.projectId   || null,
-        agentId:          d.agentId     || null,
-        unitNumber:       d.unitNumber  || null,
-        description:      d.description || null,
-        salePrice:        d.salePrice   ? parseFloat(d.salePrice) : null,
-        currency:         d.currency,
-        commissionPct:    d.commissionPct ? parseFloat(d.commissionPct) : null,
-        commissionAmount: parseFloat(d.commissionAmount),
-        status:           d.status,
-        commissionDate:   d.commissionDate,
-        notes:            d.notes || null,
-      }),
-    })
-    if (res.ok) {
-      const created = await res.json()
-      setList(prev => [created, ...prev])
-      setModal(null)
-    }
-    setSaving(false)
-  }
-
-  async function handleEdit(d: FormData) {
-    if (!editing) return
-    setSaving(true)
-    if (editing.source === 'MANUAL') {
-      const res = await fetch(`/api/manual-commissions/${editing.id}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    setSaveError(null)
+    try {
+      const res = await fetch('/api/manual-commissions', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clientName:       d.clientName,
           projectId:        d.projectId   || null,
@@ -488,33 +469,83 @@ export default function ComisionesClient({ projects, agents }: { projects: Proje
         }),
       })
       if (res.ok) {
-        const updated = await res.json()
-        setList(prev => prev.map(x => x.id === editing.id ? updated : x))
+        const created = await res.json()
+        setList(prev => [created, ...prev])
+        setModal(null)
+        setSaveError(null)
+      } else {
+        const err = await res.json().catch(() => ({}))
+        setSaveError(err.error || `Error ${res.status} — intenta de nuevo`)
       }
-    } else {
-      // AUTO: only update commissionPct and commissionStatus
-      const body: Record<string, unknown> = {}
-      const pct = parseFloat(d.commissionPct)
-      if (!isNaN(pct))      body.commissionPct    = pct
-      if (d.status !== editing.commissionStatus) body.commissionStatus = d.status
-      if (Object.keys(body).length > 0) {
-        const res = await fetch(`/api/commissions/${editing.id}`, {
-          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        })
-        if (res.ok) {
-          const newPct = typeof body.commissionPct === 'number' ? body.commissionPct : editing.commissionPct ?? 0
-          const newSt  = typeof body.commissionStatus === 'string' ? body.commissionStatus : editing.commissionStatus
-          setList(prev => prev.map(x => x.id === editing.id
-            ? { ...x, commissionPct: newPct, commissionStatus: newSt, commissionAmount: (x.salePrice ?? 0) * newPct / 100 }
-            : x
-          ))
-        }
-      }
+    } catch {
+      setSaveError('Error de conexión — verifica tu internet e intenta de nuevo')
     }
     setSaving(false)
-    setModal(null)
-    setEditing(null)
+  }
+
+  async function handleEdit(d: FormData) {
+    if (!editing) return
+    setSaving(true)
+    setSaveError(null)
+    try {
+      if (editing.source === 'MANUAL') {
+        const res = await fetch(`/api/manual-commissions/${editing.id}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clientName:       d.clientName,
+            projectId:        d.projectId   || null,
+            agentId:          d.agentId     || null,
+            unitNumber:       d.unitNumber  || null,
+            description:      d.description || null,
+            salePrice:        d.salePrice   ? parseFloat(d.salePrice) : null,
+            currency:         d.currency,
+            commissionPct:    d.commissionPct ? parseFloat(d.commissionPct) : null,
+            commissionAmount: parseFloat(d.commissionAmount),
+            status:           d.status,
+            commissionDate:   d.commissionDate,
+            notes:            d.notes || null,
+          }),
+        })
+        if (res.ok) {
+          const updated = await res.json()
+          setList(prev => prev.map(x => x.id === editing.id ? updated : x))
+          setModal(null); setEditing(null)
+        } else {
+          const err = await res.json().catch(() => ({}))
+          setSaveError(err.error || `Error ${res.status} — intenta de nuevo`)
+        }
+      } else {
+        // AUTO: only update commissionPct and commissionStatus
+        const body: Record<string, unknown> = {}
+        const pct = parseFloat(d.commissionPct)
+        if (!isNaN(pct))      body.commissionPct    = pct
+        if (d.status !== editing.commissionStatus) body.commissionStatus = d.status
+        if (Object.keys(body).length > 0) {
+          const res = await fetch(`/api/commissions/${editing.id}`, {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          })
+          if (res.ok) {
+            const newPct = typeof body.commissionPct === 'number' ? body.commissionPct : editing.commissionPct ?? 0
+            const newSt  = typeof body.commissionStatus === 'string' ? body.commissionStatus : editing.commissionStatus
+            setList(prev => prev.map(x => x.id === editing.id
+              ? { ...x, commissionPct: newPct, commissionStatus: newSt, commissionAmount: (x.salePrice ?? 0) * newPct / 100 }
+              : x
+            ))
+            setModal(null); setEditing(null)
+          } else {
+            const err = await res.json().catch(() => ({}))
+            setSaveError(err.error || `Error ${res.status}`)
+          }
+        } else {
+          // nothing changed — just close
+          setModal(null); setEditing(null)
+        }
+      }
+    } catch {
+      setSaveError('Error de conexión — verifica tu internet e intenta de nuevo')
+    }
+    setSaving(false)
   }
 
   async function handleDelete(id: string) {
@@ -696,12 +727,17 @@ export default function ComisionesClient({ projects, agents }: { projects: Proje
       {/* Create Modal */}
       {modal === 'create' && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setModal(null)} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setModal(null); setSaveError(null) }} />
           <div className="relative bg-white rounded-t-3xl sm:rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
-            <h3 className="font-bold text-gray-900 text-lg mb-5">✏️ Nueva comisión manual</h3>
+            <h3 className="font-bold text-gray-900 text-lg mb-4">✏️ Nueva comisión manual</h3>
+            {saveError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 font-medium">
+                ❌ {saveError}
+              </div>
+            )}
             <CommissionForm
               initial={formData} projects={projects} agents={agents}
-              onSave={handleCreate} onCancel={() => setModal(null)}
+              onSave={handleCreate} onCancel={() => { setModal(null); setSaveError(null) }}
               saving={saving} title="Registrar comisión"
             />
           </div>
@@ -711,7 +747,7 @@ export default function ComisionesClient({ projects, agents }: { projects: Proje
       {/* Edit Modal */}
       {modal === 'edit' && editing && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setModal(null); setEditing(null) }} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setModal(null); setEditing(null); setSaveError(null) }} />
           <div className="relative bg-white rounded-t-3xl sm:rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center gap-2 mb-1">
               <h3 className="font-bold text-gray-900 text-lg">Editar comisión</h3>
@@ -720,7 +756,12 @@ export default function ComisionesClient({ projects, agents }: { projects: Proje
               </span>
             </div>
             {editing.source === 'AUTO' && (
-              <p className="text-xs text-gray-400 mb-4">Separación vinculada · Solo puedes editar el monto/% y el estado</p>
+              <p className="text-xs text-gray-400 mb-2">Separación vinculada · Solo puedes editar el monto/% y el estado</p>
+            )}
+            {saveError && (
+              <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 font-medium">
+                ❌ {saveError}
+              </div>
             )}
             <CommissionForm
               initial={formData} projects={projects} agents={agents}
