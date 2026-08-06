@@ -1,6 +1,30 @@
 import { prisma } from '@/lib/db'
 import { NextRequest, NextResponse } from 'next/server'
 
+// Crea la tabla si no existe (idempotente — seguro llamar siempre)
+async function ensureManualCommissionTable() {
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "ManualCommission" (
+      "id"               TEXT NOT NULL,
+      "clientName"       TEXT NOT NULL,
+      "projectId"        TEXT,
+      "agentId"          TEXT,
+      "unitNumber"       TEXT,
+      "description"      TEXT,
+      "salePrice"        DOUBLE PRECISION,
+      "currency"         TEXT NOT NULL DEFAULT 'USD',
+      "commissionPct"    DOUBLE PRECISION,
+      "commissionAmount" DOUBLE PRECISION NOT NULL,
+      "status"           TEXT NOT NULL DEFAULT 'PENDIENTE',
+      "commissionDate"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "notes"            TEXT,
+      "createdAt"        TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt"        TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "ManualCommission_pkey" PRIMARY KEY ("id")
+    )
+  `)
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const projectId = searchParams.get('projectId') || undefined
@@ -15,6 +39,9 @@ export async function GET(req: NextRequest) {
   const dateFilter = from || to
     ? { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) }
     : undefined
+
+  // Garantiza que la tabla exista antes de consultarla
+  await ensureManualCommissionTable()
 
   // AUTO: from reservations (existing)
   const [reservations, manualList] = await Promise.all([

@@ -1,7 +1,35 @@
 import { prisma } from '@/lib/db'
 import { NextRequest, NextResponse } from 'next/server'
 
+async function ensureTable() {
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "PasoDeRed" (
+      "id"               TEXT NOT NULL,
+      "clientName"       TEXT NOT NULL,
+      "clientPhone"      TEXT,
+      "clientEmail"      TEXT,
+      "source"           TEXT NOT NULL DEFAULT 'OTRO',
+      "referredBy"       TEXT,
+      "jobType"          TEXT NOT NULL DEFAULT 'OTRO',
+      "description"      TEXT,
+      "amount"           DOUBLE PRECISION,
+      "currency"         TEXT NOT NULL DEFAULT 'USD',
+      "commissionPct"    DOUBLE PRECISION,
+      "commissionAmount" DOUBLE PRECISION,
+      "status"           TEXT NOT NULL DEFAULT 'NUEVO',
+      "startDate"        TIMESTAMP(3),
+      "endDate"          TIMESTAMP(3),
+      "agentId"          TEXT,
+      "notes"            TEXT,
+      "createdAt"        TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt"        TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "PasoDeRed_pkey" PRIMARY KEY ("id")
+    )
+  `)
+}
+
 export async function GET(req: NextRequest) {
+  await ensureTable()
   const { searchParams } = new URL(req.url)
   const agentId  = searchParams.get('agentId')  || undefined
   const status   = searchParams.get('status')   || undefined
