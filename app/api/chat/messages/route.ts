@@ -46,12 +46,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'roomId y content son requeridos' }, { status: 400 })
   }
 
+  const senderId: string = session.agentId ?? ''
   const id = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
 
   await prisma.$executeRawUnsafe(
     `INSERT INTO "ChatMessage" ("id","roomId","senderId","content","type","taskDone","reminderAt","isPinned","createdAt")
      VALUES ($1,$2,$3,$4,$5,false,$6,false,NOW())`,
-    id, roomId, session.agentId, content.trim(), type,
+    id, roomId, senderId, content.trim(), type,
     reminderAt ? new Date(reminderAt) : null
   )
 

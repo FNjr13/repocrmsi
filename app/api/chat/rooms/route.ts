@@ -50,9 +50,7 @@ async function ensureGeneralRoom() {
       `INSERT INTO "ChatRoom" ("id","type","name","slug","createdAt") VALUES ($1,'GENERAL','General','general',NOW())`,
       id
     )
-    return id
   }
-  return existing[0].id
 }
 
 export async function GET() {
@@ -61,6 +59,8 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   await ensureGeneralRoom()
+
+  const agentId: string = session.agentId ?? ''
 
   const rooms = await prisma.$queryRaw<{
     id: string; type: string; name: string | null; slug: string;
@@ -77,9 +77,9 @@ export async function GET() {
       (SELECT content FROM "ChatMessage" msg WHERE msg."roomId" = r.id ORDER BY msg."createdAt" DESC LIMIT 1) AS "lastMsg",
       (SELECT "createdAt" FROM "ChatMessage" msg WHERE msg."roomId" = r.id ORDER BY msg."createdAt" DESC LIMIT 1) AS "lastMsgAt"
     FROM "ChatRoom" r
-    LEFT JOIN "ChatRoomMember" m ON m."roomId" = r.id AND m."agentId" = ${session.agentId}
+    LEFT JOIN "ChatRoomMember" m ON m."roomId" = r.id AND m."agentId" = ${agentId}
     WHERE r.type = 'GENERAL'
-       OR EXISTS (SELECT 1 FROM "ChatRoomMember" mb WHERE mb."roomId" = r.id AND mb."agentId" = ${session.agentId})
+       OR EXISTS (SELECT 1 FROM "ChatRoomMember" mb WHERE mb."roomId" = r.id AND mb."agentId" = ${agentId})
     ORDER BY "lastMsgAt" DESC NULLS LAST
   `
 
@@ -94,7 +94,8 @@ export async function POST(req: NextRequest) {
   const { targetAgentId } = await req.json()
   if (!targetAgentId) return NextResponse.json({ error: 'targetAgentId requerido' }, { status: 400 })
 
-  const ids = [session.agentId, targetAgentId].sort()
+  const myId: string = session.agentId ?? ''
+  const ids = [myId, targetAgentId].sort()
   const slug = `dm-${ids[0]}-${ids[1]}`
 
   const existing = await prisma.$queryRaw<{ id: string }[]>`
@@ -110,11 +111,11 @@ export async function POST(req: NextRequest) {
       `INSERT INTO "ChatRoom" ("id","type","name","slug","createdAt") VALUES ($1,'DIRECT',NULL,$2,NOW())`,
       roomId, slug
     )
-    for (const agentId of ids) {
-      const membId = `mem_${Date.now()}_${agentId.slice(-4)}`
+    for (const aid of ids) {
+      const membId = `mem_${Date.now()}_${aid.slice(-4)}`
       await prisma.$executeRawUnsafe(
         `INSERT INTO "ChatRoomMember" ("id","roomId","agentId","lastRead") VALUES ($1,$2,$3,NOW()) ON CONFLICT DO NOTHING`,
-        membId, roomId, agentId
+        membId, roomId, aid
       )
     }
   }

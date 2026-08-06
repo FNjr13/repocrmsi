@@ -45,13 +45,15 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { id } = await params
+  const myId: string = session.agentId ?? ''
+  const myRole: string = session.role ?? ''
 
   const [msg] = await prisma.$queryRaw<{ senderId: string }[]>`
     SELECT "senderId" FROM "ChatMessage" WHERE id = ${id} LIMIT 1
   `
 
   if (!msg) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
-  if (msg.senderId !== session.agentId && session.role !== 'ADMIN') {
+  if (msg.senderId !== myId && myRole !== 'ADMIN') {
     return NextResponse.json({ error: 'Sin permiso' }, { status: 403 })
   }
 

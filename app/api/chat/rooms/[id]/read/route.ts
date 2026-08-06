@@ -9,8 +9,10 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   const { id: roomId } = await params
 
   // Upsert membership + update lastRead
+  const agentId = session!.agentId ?? ''
+
   const existing = await prisma.$queryRaw<{ id: string }[]>`
-    SELECT id FROM "ChatRoomMember" WHERE "roomId" = ${roomId} AND "agentId" = ${session.agentId} LIMIT 1
+    SELECT id FROM "ChatRoomMember" WHERE "roomId" = ${roomId} AND "agentId" = ${agentId} LIMIT 1
   `
 
   if (existing.length > 0) {
@@ -19,10 +21,10 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       existing[0].id
     )
   } else {
-    const id = `mem_${Date.now()}_${session.agentId.slice(-4)}`
+    const id = `mem_${Date.now()}_${agentId.slice(-4)}`
     await prisma.$executeRawUnsafe(
       `INSERT INTO "ChatRoomMember" ("id","roomId","agentId","lastRead") VALUES ($1,$2,$3,NOW()) ON CONFLICT DO NOTHING`,
-      id, roomId, session.agentId
+      id, roomId, agentId
     )
   }
 
