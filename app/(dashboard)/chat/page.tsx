@@ -13,5 +13,5 @@ export default async function ChatPage() {
     orderBy: { name: 'asc' },
   })
 
-  return <ChatClient agents={agents} currentAgentId={session.agentId} currentAgentName={session.name ?? ''} />
+  return <ChatClient agents={agents} currentAgentId={session!.agentId ?? ''} currentAgentName={session!.name ?? ''} />
 }
