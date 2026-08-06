@@ -127,6 +127,8 @@ model Agent {
   messageTemplates  MessageTemplate[]
   manualCommissions ManualCommission[]
   pasosDeRed        PasoDeRed[]
+  chatMessages      ChatMessage[]
+  chatRoomMembers   ChatRoomMember[]
 }
 
 model CalendarEvent {
@@ -628,4 +630,43 @@ model PasoDeRed {
   updatedAt        DateTime @updatedAt
 
   agent Agent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
+}
+
+// ─── Chat interno ─────────────────────────────────────────────────────────────
+model ChatRoom {
+  id        String   @id @default(cuid())
+  type      String   // GENERAL, DIRECT
+  name      String?
+  slug      String   @unique
+  createdAt DateTime @default(now())
+
+  messages ChatMessage[]
+  members  ChatRoomMember[]
+}
+
+model ChatRoomMember {
+  id       String   @id @default(cuid())
+  roomId   String
+  agentId  String
+  lastRead DateTime @default(now())
+
+  room  ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  agent Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, agentId])
+}
+
+model ChatMessage {
+  id         String    @id @default(cuid())
+  roomId     String
+  senderId   String
+  content    String
+  type       String    @default("TEXT") // TEXT, TASK, REMINDER
+  taskDone   Boolean   @default(false)
+  reminderAt DateTime?
+  isPinned   Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+
+  room   ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sender Agent    @relation(fields: [senderId], references: [id], onDelete: Cascade)
 }
