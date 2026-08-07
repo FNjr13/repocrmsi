@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
   }
 
   const senderId: string = session.agentId ?? ''
+  const senderName: string = session.name ?? 'Alguien'
   const id = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
 
   await prisma.$executeRawUnsafe(
@@ -69,6 +70,30 @@ export async function POST(req: NextRequest) {
     JOIN "Agent" a ON a.id = msg."senderId"
     WHERE msg.id = ${id}
   `
+
+  // ── Notify DM recipients ──────────────────────────────────────────────────
+  try {
+    const [room] = await prisma.$queryRaw<{ type: string }[]>`
+      SELECT type FROM "ChatRoom" WHERE id = ${roomId} LIMIT 1
+    `
+    if (room?.type === 'DIRECT') {
+      const members = await prisma.$queryRaw<{ agentId: string }[]>`
+        SELECT "agentId" FROM "ChatRoomMember"
+        WHERE "roomId" = ${roomId} AND "agentId" != ${senderId}
+      `
+      for (const m of members) {
+        await prisma.notification.create({
+          data: {
+            type:    'CHAT_MESSAGE',
+            title:   `💬 Mensaje de ${senderName}`,
+            message: content.trim().slice(0, 120),
+            agentId: m.agentId,
+            sentBy:  senderName,
+          },
+        })
+      }
+    }
+  } catch { /* non-critical — message already created */ }
 
   return NextResponse.json(msg, { status: 201 })
 }
