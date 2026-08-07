@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db'
 import { NextRequest, NextResponse } from 'next/server'
+import { notify } from '@/lib/notifications'
 
 async function ensureTable() {
   await prisma.$executeRawUnsafe(`
@@ -58,6 +59,20 @@ export async function POST(req: NextRequest) {
       project: { select: { id: true, name: true } },
     },
   })
+
+  // ── Notificación al agente ────────────────────────────────────────────────
+  if (record.agentId) {
+    const amountStr = record.commissionAmount.toLocaleString('es-PA', {
+      style: 'currency', currency: record.currency === 'USD' ? 'USD' : 'USD',
+      maximumFractionDigits: 0,
+    })
+    await notify({
+      type:    'COMMISSION',
+      title:   `💰 Nueva comisión registrada`,
+      message: `${record.clientName} · ${amountStr} ${record.currency}`,
+      agentId: record.agentId,
+    })
+  }
 
   return NextResponse.json({
     id:               record.id,

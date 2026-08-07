@@ -28,6 +28,7 @@ interface Toast {
 // ─── Config ───────────────────────────────────────────────────────────────────
 const TYPE_COLOR: Record<string, string> = {
   NEW_LEAD:      'bg-blue-100 text-blue-700',
+  LEAD_ASSIGNED: 'bg-blue-100 text-blue-700',
   FOLLOW_UP:     'bg-amber-100 text-amber-700',
   VISIT_TODAY:   'bg-purple-100 text-purple-700',
   INACTIVITY:    'bg-orange-100 text-orange-700',
@@ -36,10 +37,14 @@ const TYPE_COLOR: Record<string, string> = {
   SALE_WON:      'bg-yellow-100 text-yellow-700',
   ADMIN_MESSAGE: 'bg-indigo-100 text-indigo-700',
   CHAT_MESSAGE:  'bg-pink-100 text-pink-700',
+  TASK_ASSIGNED: 'bg-violet-100 text-violet-700',
+  COMMISSION:    'bg-emerald-100 text-emerald-700',
+  PASO_DE_RED:   'bg-teal-100 text-teal-700',
 }
 
 const TYPE_ICON: Record<string, string> = {
   NEW_LEAD:      '👤',
+  LEAD_ASSIGNED: '👤',
   FOLLOW_UP:     '🔔',
   VISIT_TODAY:   '🏠',
   INACTIVITY:    '⚠️',
@@ -48,24 +53,32 @@ const TYPE_ICON: Record<string, string> = {
   SALE_WON:      '🏆',
   ADMIN_MESSAGE: '📣',
   CHAT_MESSAGE:  '💬',
+  TASK_ASSIGNED: '✅',
+  COMMISSION:    '💰',
+  PASO_DE_RED:   '🌐',
 }
 
-type Category = 'all' | 'leads' | 'ventas' | 'chat' | 'admin'
+type Category = 'all' | 'leads' | 'tareas' | 'ventas' | 'chat' | 'admin'
 
 const CATS: { key: Category; label: string; icon: string; types: string[] }[] = [
   { key: 'all',    label: 'Todas',  icon: '🔔', types: [] },
-  { key: 'leads',  label: 'Leads',  icon: '👤', types: ['NEW_LEAD','FOLLOW_UP','VISIT_TODAY','STAGE_CHANGE','INACTIVITY'] },
-  { key: 'ventas', label: 'Ventas', icon: '💰', types: ['RESERVATION','SALE_WON'] },
+  { key: 'leads',  label: 'Leads',  icon: '👤', types: ['NEW_LEAD','LEAD_ASSIGNED','FOLLOW_UP','VISIT_TODAY','STAGE_CHANGE','INACTIVITY'] },
+  { key: 'tareas', label: 'Tareas', icon: '✅', types: ['TASK_ASSIGNED'] },
+  { key: 'ventas', label: 'Ventas', icon: '💰', types: ['RESERVATION','SALE_WON','COMMISSION','PASO_DE_RED'] },
   { key: 'chat',   label: 'Chat',   icon: '💬', types: ['CHAT_MESSAGE'] },
   { key: 'admin',  label: 'Admin',  icon: '📣', types: ['ADMIN_MESSAGE'] },
 ]
 
 function getRoute(n: Notification): string | null {
-  if (n.type === 'SALE_WON')      return null          // handled with celebration
+  if (n.type === 'SALE_WON')      return null
   if (n.type === 'CHAT_MESSAGE')  return '/chat'
   if (n.type === 'VISIT_TODAY')   return '/calendar'
-  if (n.type === 'NEW_LEAD')      return '/crm'
+  if (n.type === 'TASK_ASSIGNED') return '/calendar'
+  if (n.type === 'NEW_LEAD')      return n.leadId ? `/crm/${n.leadId}` : '/crm'
+  if (n.type === 'LEAD_ASSIGNED') return n.leadId ? `/crm/${n.leadId}` : '/crm'
   if (n.type === 'RESERVATION')   return '/comisiones'
+  if (n.type === 'COMMISSION')    return '/comisiones'
+  if (n.type === 'PASO_DE_RED')   return '/paso-de-red'
   if (n.leadId)                   return `/crm/${n.leadId}`
   return null
 }

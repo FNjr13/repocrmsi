@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { notify } from '@/lib/notifications'
+
+const STAGE_LABELS: Record<string, string> = {
+  NUEVO: 'Nuevo', CONTACTADO: 'Contactado', INTERESADO: 'Interesado',
+  VISITA: 'Visita agendada', NEGOCIACION: 'En negociación',
+  GANADO: 'Ganado ✅', PERDIDO: 'Perdido ❌',
+}
 
 export async function GET(
   request: NextRequest,
@@ -35,9 +42,11 @@ export async function PATCH(
     const { id } = await params
     const body = await request.json()
 
-    const prevLead = body.stage !== undefined
-      ? await prisma.lead.findUnique({ where: { id }, select: { stage: true } })
-      : null
+    // Fetch prev state for change detection
+    const prevLead = await prisma.lead.findUnique({
+      where: { id },
+      select: { stage: true, agentId: true, followUpDate: true, firstName: true, lastName: true },
+    })
 
     const lead = await prisma.lead.update({
       where: { id },
@@ -63,25 +72,67 @@ export async function PATCH(
       },
       include: {
         project: { select: { id: true, name: true } },
-        agent: { select: { id: true, name: true } },
+        agent:   { select: { id: true, name: true } },
         activities: { orderBy: { date: 'desc' } },
         events: { orderBy: { date: 'asc' }, include: { agent: { select: { id: true, name: true } } } },
       },
     })
 
+    const leadName = `${lead.firstName} ${lead.lastName}`
+
+    // ── 1. Stage change ─────────────────────────────────────────────────────
     if (body.stage !== undefined && prevLead && prevLead.stage !== body.stage) {
-      const LABELS: Record<string, string> = {
-        NUEVO: 'Nuevo', CONTACTADO: 'Contactado', INTERESADO: 'Interesado',
-        VISITA: 'Visita agendada', NEGOCIACION: 'En negociación',
-        GANADO: '✅ Ganado', PERDIDO: '❌ Perdido',
-      }
       await prisma.activity.create({
         data: {
           leadId: id,
           type: 'NOTA',
-          description: `Etapa cambiada: "${LABELS[prevLead.stage] || prevLead.stage}" → "${LABELS[body.stage] || body.stage}"`,
+          description: `Etapa cambiada: "${STAGE_LABELS[prevLead.stage] || prevLead.stage}" → "${STAGE_LABELS[body.stage] || body.stage}"`,
         },
       })
+      if (lead.agentId) {
+        await notify({
+          type:    'STAGE_CHANGE',
+          title:   `📊 ${leadName} avanzó a "${STAGE_LABELS[body.stage] || body.stage}"`,
+          message: `Antes: ${STAGE_LABELS[prevLead.stage] || prevLead.stage}`,
+          agentId: lead.agentId,
+          leadId:  id,
+        })
+      }
+    }
+
+    // ── 2. Lead assigned to a different agent ────────────────────────────────
+    if (
+      body.agentId !== undefined &&
+      body.agentId &&
+      prevLead &&
+      body.agentId !== prevLead.agentId
+    ) {
+      await notify({
+        type:    'LEAD_ASSIGNED',
+        title:   `👤 Lead asignado: ${leadName}`,
+        message: `${leadName} fue asignado a tu cartera${lead.project ? ' · ' + lead.project.name : ''}`,
+        agentId: body.agentId,
+        leadId:  id,
+      })
+    }
+
+    // ── 3. Follow-up date set or changed ────────────────────────────────────
+    if (body.followUpDate && lead.agentId && prevLead) {
+      const newTs = new Date(body.followUpDate).getTime()
+      const prevTs = prevLead.followUpDate ? new Date(prevLead.followUpDate).getTime() : 0
+      if (newTs !== prevTs) {
+        const dateStr = new Date(body.followUpDate).toLocaleDateString('es-PA', {
+          day: '2-digit', month: 'short', year: 'numeric',
+          hour: '2-digit', minute: '2-digit',
+        })
+        await notify({
+          type:    'FOLLOW_UP',
+          title:   `🔔 Seguimiento programado: ${leadName}`,
+          message: `Recordatorio el ${dateStr}`,
+          agentId: lead.agentId,
+          leadId:  id,
+        })
+      }
     }
 
     return NextResponse.json(lead)

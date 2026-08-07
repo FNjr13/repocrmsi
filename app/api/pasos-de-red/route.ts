@@ -1,5 +1,11 @@
 import { prisma } from '@/lib/db'
 import { NextRequest, NextResponse } from 'next/server'
+import { notify } from '@/lib/notifications'
+
+const JOB_LABELS: Record<string, string> = {
+  CONSTRUCCION: 'Construcción', REMODELACION: 'Remodelación',
+  SERVICIO: 'Servicio', OTRO: 'Otro',
+}
 
 async function ensureTable() {
   await prisma.$executeRawUnsafe(`
@@ -99,6 +105,16 @@ export async function POST(req: NextRequest) {
     },
     include: { agent: { select: { id: true, name: true } } },
   })
+
+  // ── Notificación al agente ────────────────────────────────────────────────
+  if (record.agentId) {
+    await notify({
+      type:    'PASO_DE_RED',
+      title:   `🌐 Paso de Red asignado: ${record.clientName}`,
+      message: `${JOB_LABELS[record.jobType] || record.jobType}${record.amount ? ` · $${record.amount.toLocaleString('es-PA')}` : ''}`,
+      agentId: record.agentId,
+    })
+  }
 
   return NextResponse.json({ ...record, agentName: record.agent?.name ?? null }, { status: 201 })
 }

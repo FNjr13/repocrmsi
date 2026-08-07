@@ -1,5 +1,14 @@
 import { prisma } from '@/lib/db'
 import { NextRequest, NextResponse } from 'next/server'
+import { notify } from '@/lib/notifications'
+
+const EVENT_ICON: Record<string, string> = {
+  LLAMADA: '📞', VISITA: '🏠', REUNION: '🤝', TAREA: '✅', CIERRE: '🔑', OTRO: '📅',
+}
+const EVENT_LABEL: Record<string, string> = {
+  LLAMADA: 'Llamada', VISITA: 'Visita', REUNION: 'Reunión',
+  TAREA: 'Tarea', CIERRE: 'Cierre', OTRO: 'Evento',
+}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -44,5 +53,25 @@ export async function POST(req: NextRequest) {
       project: { select: { id: true, name: true } },
     },
   })
+  // ── Notificación al agente asignado ──────────────────────────────────────
+  if (event.agentId) {
+    const icon    = EVENT_ICON[event.type]  || '📅'
+    const label   = EVENT_LABEL[event.type] || 'Evento'
+    const dateStr = new Date(event.date).toLocaleDateString('es-PA', {
+      weekday: 'short', day: '2-digit', month: 'short',
+      hour: '2-digit', minute: '2-digit',
+    })
+    const leadPart = event.lead
+      ? ` · ${event.lead.firstName} ${event.lead.lastName}`
+      : ''
+    await notify({
+      type:    'TASK_ASSIGNED',
+      title:   `${icon} ${label}: ${event.title}`,
+      message: `${dateStr}${leadPart}`,
+      agentId: event.agentId,
+      leadId:  event.leadId || null,
+    })
+  }
+
   return NextResponse.json(event, { status: 201 })
 }

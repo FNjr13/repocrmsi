@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { notify } from '@/lib/notifications'
+
+const SOURCE_LABELS: Record<string, string> = {
+  META: 'Meta Ads', GOOGLE: 'Google Ads', WHATSAPP: 'WhatsApp',
+  WEB: 'Sitio Web', REFERIDO: 'Referido',
+  PORTALINMOBILIARIO: 'Portal Inmobiliario', YAPO: 'Yapo',
+  PROPERATI: 'Properati', OTRO: 'Otro',
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -73,17 +81,34 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    const SOURCE_LABELS: Record<string, string> = {
-      META: 'Meta Ads', GOOGLE: 'Google Ads', WHATSAPP: 'WhatsApp',
-      WEB: 'Sitio Web', REFERIDO: 'Referido', OTRO: 'Otro',
-    }
+    const srcLabel = SOURCE_LABELS[lead.source] || lead.source
     await prisma.activity.create({
       data: {
         leadId: lead.id,
         type: 'NOTA',
-        description: `Lead ingresado desde ${SOURCE_LABELS[lead.source] || lead.source}.${lead.projectId ? '' : ' Sin proyecto asignado.'}`,
+        description: `Lead ingresado desde ${srcLabel}.${lead.projectId ? '' : ' Sin proyecto asignado.'}`,
       },
     })
+
+    // ── Notificación ────────────────────────────────────────────────────────
+    const leadName = `${lead.firstName} ${lead.lastName}`
+    if (lead.agentId) {
+      await notify({
+        type:    'NEW_LEAD',
+        title:   `👤 Nuevo lead asignado`,
+        message: `${leadName} · ${srcLabel}${lead.project ? ' · ' + lead.project.name : ''}`,
+        agentId: lead.agentId,
+        leadId:  lead.id,
+      })
+    } else {
+      await notify({
+        type:    'NEW_LEAD',
+        title:   `👤 Nuevo lead sin asignar`,
+        message: `${leadName} · ${srcLabel} · Requiere asignación`,
+        agentId: null,   // global — lo ven todos
+        leadId:  lead.id,
+      })
+    }
 
     return NextResponse.json(lead, { status: 201 })
   } catch (error) {
