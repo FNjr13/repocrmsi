@@ -60,6 +60,18 @@ export default function ProjectLeadsSearch({ leads }: { leads: Lead[] }) {
     )
   }, [sorted, search])
 
+  // Group by first letter when not searching
+  const grouped = useMemo(() => {
+    if (search.trim()) return null
+    const map = new Map<string, Lead[]>()
+    for (const lead of filtered) {
+      const letter = lead.firstName[0]?.toUpperCase() ?? '#'
+      if (!map.has(letter)) map.set(letter, [])
+      map.get(letter)!.push(lead)
+    }
+    return map
+  }, [filtered, search])
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -84,35 +96,61 @@ export default function ProjectLeadsSearch({ leads }: { leads: Lead[] }) {
         </div>
       )}
 
-      <div className="space-y-1">
+      <div>
         {leads.length === 0 && (
           <p className="text-center text-gray-400 text-sm py-8">No hay leads para este proyecto</p>
         )}
         {filtered.length === 0 && search && (
           <p className="text-center text-gray-400 text-sm py-6">Sin resultados para &quot;{search}&quot;</p>
         )}
-        {filtered.map(lead => (
-          <Link
-            key={lead.id}
-            href={`/crm/${lead.id}`}
-            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-              {lead.firstName[0]}{lead.lastName[0]}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="font-medium text-sm text-gray-900">{lead.firstName} {lead.lastName}</div>
-              <div className="text-xs text-gray-500">{SOURCE_ICON[lead.source] || '📌'} {lead.phone}</div>
-            </div>
-            <div className="flex items-center gap-2">
-              {lead.agent && <span className="text-xs text-gray-400 hidden sm:block">{lead.agent.name}</span>}
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STAGE_COLOR[lead.stage] || 'bg-gray-100 text-gray-600'}`}>
-                {STAGE_LABEL[lead.stage] || lead.stage}
-              </span>
-            </div>
-          </Link>
-        ))}
+
+        {/* With search: flat list */}
+        {search.trim() && (
+          <div className="space-y-1">
+            {filtered.map(lead => <LeadRow key={lead.id} lead={lead} />)}
+          </div>
+        )}
+
+        {/* Without search: grouped by letter */}
+        {!search.trim() && grouped && (
+          <div>
+            {[...grouped.entries()].map(([letter, group]) => (
+              <div key={letter} className="mb-1">
+                <div className="flex items-center gap-2 py-1.5 sticky top-0 bg-white z-10">
+                  <span className="text-xs font-bold text-gray-400 w-5 text-center">{letter}</span>
+                  <div className="flex-1 h-px bg-gray-100" />
+                </div>
+                <div className="space-y-0.5">
+                  {group.map(lead => <LeadRow key={lead.id} lead={lead} />)}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
+  )
+}
+
+function LeadRow({ lead }: { lead: Lead }) {
+  return (
+    <Link
+      href={`/crm/${lead.id}`}
+      className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
+    >
+      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+        {lead.firstName[0]}{lead.lastName[0]}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="font-medium text-sm text-gray-900">{lead.firstName} {lead.lastName}</div>
+        <div className="text-xs text-gray-500">{SOURCE_ICON[lead.source] || '📌'} {lead.phone}</div>
+      </div>
+      <div className="flex items-center gap-2">
+        {lead.agent && <span className="text-xs text-gray-400 hidden sm:block">{lead.agent.name}</span>}
+        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STAGE_COLOR[lead.stage] || 'bg-gray-100 text-gray-600'}`}>
+          {STAGE_LABEL[lead.stage] || lead.stage}
+        </span>
+      </div>
+    </Link>
   )
 }

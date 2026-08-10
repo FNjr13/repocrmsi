@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 
 interface Unit {
   id: string
@@ -25,6 +25,10 @@ const STATUS_CONFIG: Record<Status, { label: string; bg: string; text: string; b
 
 function cfg(status: string) {
   return STATUS_CONFIG[status as Status] ?? STATUS_CONFIG.NO_DISPONIBLE
+}
+
+function naturalSort(a: Unit, b: Unit): number {
+  return a.unitNumber.localeCompare(b.unitNumber, undefined, { numeric: true, sensitivity: 'base' })
 }
 
 export default function UnitsSection({ projectId, unitLabel = 'Unidad' }: { projectId: string; unitLabel?: string }) {
@@ -120,9 +124,15 @@ export default function UnitsSection({ projectId, unitLabel = 'Unidad' }: { proj
     }
   }
 
+  const sorted = useMemo(() => [...units].sort(naturalSort), [units])
   const counts = Object.fromEntries(STATUSES.map(s => [s, units.filter(u => u.status === s).length]))
   const total = units.length
   const soldPct = total > 0 ? Math.round(((counts.VENDIDO + counts.CPP) / total) * 100) : 0
+
+  const clients = useMemo(
+    () => sorted.filter(u => u.status !== 'DISPONIBLE' && u.status !== 'NO_DISPONIBLE'),
+    [sorted]
+  )
 
   // Group by floor if any unit has floor set, otherwise flat list
   const hasFloors = units.some(u => u.floor !== null)
@@ -204,7 +214,7 @@ export default function UnitsSection({ projectId, unitLabel = 'Unidad' }: { proj
                 <div key={floor}>
                   <div className="text-xs text-gray-400 font-medium mb-1.5">Piso {floor}</div>
                   <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 gap-2">
-                    {units.filter(u => (u.floor ?? 0) === floor).map(unit => (
+                    {sorted.filter(u => (u.floor ?? 0) === floor).map(unit => (
                       <UnitCard key={unit.id} unit={unit} unitLabel={unitLabel} onClick={() => openUnit(unit)} selected={selectedUnit?.id === unit.id} />
                     ))}
                   </div>
@@ -213,7 +223,7 @@ export default function UnitsSection({ projectId, unitLabel = 'Unidad' }: { proj
             </div>
           ) : (
             <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 gap-2">
-              {units.map(unit => (
+              {sorted.map(unit => (
                 <UnitCard key={unit.id} unit={unit} unitLabel={unitLabel} onClick={() => openUnit(unit)} selected={selectedUnit?.id === unit.id} />
               ))}
             </div>
@@ -229,6 +239,67 @@ export default function UnitsSection({ projectId, unitLabel = 'Unidad' }: { proj
             ))}
             <span className="text-gray-400">· toca una unidad para ver detalles</span>
           </div>
+
+          {/* Clients table */}
+          {clients.length > 0 && (
+            <div className="mt-6 border-t border-gray-100 pt-5">
+              <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                👥 Clientes / Separaciones
+                <span className="ml-2 text-xs font-normal text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{clients.length}</span>
+              </h4>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="text-left text-xs font-medium text-gray-400 pb-2 pr-4">{unitLabel} #</th>
+                      <th className="text-left text-xs font-medium text-gray-400 pb-2 pr-4">Estado</th>
+                      <th className="text-left text-xs font-medium text-gray-400 pb-2 pr-4">Cliente</th>
+                      <th className="text-left text-xs font-medium text-gray-400 pb-2">Notas</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {clients.map(unit => {
+                      const c = cfg(unit.status)
+                      return (
+                        <tr
+                          key={unit.id}
+                          onClick={() => openUnit(unit)}
+                          className="cursor-pointer hover:bg-gray-50 transition-colors"
+                        >
+                          <td className="py-2.5 pr-4">
+                            <span className="font-bold text-gray-900">{unit.unitNumber}</span>
+                            {unit.floor !== null && (
+                              <span className="ml-1.5 text-xs text-gray-400">P{unit.floor}</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 pr-4">
+                            <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${c.bg} ${c.text} ${c.border} border`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
+                              {c.label}
+                            </span>
+                          </td>
+                          <td className="py-2.5 pr-4">
+                            {unit.clientName ? (
+                              <span className="font-medium text-gray-800">{unit.clientName}</span>
+                            ) : (
+                              <span className="text-gray-300 italic text-xs">Sin cliente</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 max-w-xs">
+                            {unit.notes ? (
+                              <span className="text-gray-500 text-xs line-clamp-1">{unit.notes}</span>
+                            ) : (
+                              <span className="text-gray-200">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* Side panel */}
           {selectedUnit && editing && (
