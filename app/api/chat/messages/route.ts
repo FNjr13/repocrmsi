@@ -71,23 +71,74 @@ export async function POST(req: NextRequest) {
     WHERE msg.id = ${id}
   `
 
-  // ── Notify DM recipients ──────────────────────────────────────────────────
+  // ── Notifications ────────────────────────────────────────────────────────
   try {
     const [room] = await prisma.$queryRaw<{ type: string }[]>`
       SELECT type FROM "ChatRoom" WHERE id = ${roomId} LIMIT 1
     `
+
+    const trimmed = content.trim().slice(0, 120)
+
+    // Parse @mentions (e.g. @Juan → 'juan')
+    const mentionTokens = [...(content.match(/@(\w+)/g) ?? [])].map(m => m.slice(1).toLowerCase())
+    const notifiedIds = new Set<string>()
+
+    if (mentionTokens.length > 0) {
+      const allAgents = await prisma.agent.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true },
+      })
+      for (const token of mentionTokens) {
+        const matched = allAgents.find(a =>
+          a.name.toLowerCase().startsWith(token) || a.name.toLowerCase().includes(token)
+        )
+        if (matched && matched.id !== senderId && !notifiedIds.has(matched.id)) {
+          notifiedIds.add(matched.id)
+          await prisma.notification.create({
+            data: {
+              type:    'CHAT_MESSAGE',
+              title:   `📣 ${senderName} te mencionó`,
+              message: trimmed,
+              agentId: matched.id,
+              sentBy:  senderName,
+            },
+          })
+        }
+      }
+    }
+
     if (room?.type === 'DIRECT') {
+      // Notify DM recipient (if not already notified via mention)
       const members = await prisma.$queryRaw<{ agentId: string }[]>`
         SELECT "agentId" FROM "ChatRoomMember"
         WHERE "roomId" = ${roomId} AND "agentId" != ${senderId}
       `
       for (const m of members) {
+        if (notifiedIds.has(m.agentId)) continue
         await prisma.notification.create({
           data: {
             type:    'CHAT_MESSAGE',
             title:   `💬 Mensaje de ${senderName}`,
-            message: content.trim().slice(0, 120),
+            message: trimmed,
             agentId: m.agentId,
+            sentBy:  senderName,
+          },
+        })
+      }
+    } else if (room?.type === 'GENERAL') {
+      // Notify all active agents except sender and already-mentioned
+      const allAgents = await prisma.agent.findMany({
+        where: { isActive: true },
+        select: { id: true },
+      })
+      for (const agent of allAgents) {
+        if (agent.id === senderId || notifiedIds.has(agent.id)) continue
+        await prisma.notification.create({
+          data: {
+            type:    'CHAT_MESSAGE',
+            title:   `💬 ${senderName} en #General`,
+            message: trimmed,
+            agentId: agent.id,
             sentBy:  senderName,
           },
         })

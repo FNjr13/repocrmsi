@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Agent { id: string; name: string; role: string; avatar: string | null }
@@ -62,8 +62,20 @@ export default function ChatClient({ agents, currentAgentId, currentAgentName }:
   const [showNewDM, setShowNewDM]   = useState(false)
   const [sending, setSending]       = useState(false)
   const [lastFetch, setLastFetch]   = useState('')
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null)
+  const [mentionAnchor, setMentionAnchor] = useState(0)
+  const [mentionIdx, setMentionIdx] = useState(0)
   const bottomRef                   = useRef<HTMLDivElement>(null)
   const pollRef                     = useRef<ReturnType<typeof setInterval> | null>(null)
+  const inputRef                    = useRef<HTMLTextAreaElement>(null)
+
+  const mentionSuggestions = useMemo(() => {
+    if (mentionQuery === null) return []
+    return agents.filter(a =>
+      a.id !== currentAgentId &&
+      a.name.toLowerCase().includes(mentionQuery.toLowerCase())
+    )
+  }, [mentionQuery, agents, currentAgentId])
 
   // ── Fetch rooms ──────────────────────────────────────────────────────────
   const fetchRooms = useCallback(async () => {
@@ -114,6 +126,44 @@ export default function ChatClient({ agents, currentAgentId, currentAgentName }:
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // ── @mention autocomplete ────────────────────────────────────────────────
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value
+    setInput(val)
+    const pos = e.target.selectionStart ?? val.length
+    const before = val.slice(0, pos)
+    const match = before.match(/@(\w*)$/)
+    if (match) {
+      setMentionQuery(match[1])
+      setMentionAnchor(pos - match[0].length)
+      setMentionIdx(0)
+    } else {
+      setMentionQuery(null)
+    }
+  }
+
+  const insertMention = (name: string) => {
+    const after = input.slice(mentionAnchor + 1 + (mentionQuery?.length ?? 0))
+    const newVal = `${input.slice(0, mentionAnchor)}@${name} ${after}`
+    setInput(newVal)
+    setMentionQuery(null)
+    setTimeout(() => inputRef.current?.focus(), 0)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (mentionSuggestions.length > 0) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx(i => Math.min(i + 1, mentionSuggestions.length - 1)); return }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); setMentionIdx(i => Math.max(i - 1, 0)); return }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault()
+        insertMention(mentionSuggestions[mentionIdx]?.name ?? '')
+        return
+      }
+      if (e.key === 'Escape') { setMentionQuery(null); return }
+    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
+  }
 
   // ── Send message ─────────────────────────────────────────────────────────
   const send = async () => {
@@ -208,6 +258,22 @@ export default function ChatClient({ agents, currentAgentId, currentAgentName }:
   const pinnedMessages = messages.filter(m => m.isPinned)
   const tasks = messages.filter(m => m.type === 'TASK')
   const reminders = messages.filter(m => m.type === 'REMINDER')
+
+  const renderMsgContent = (text: string, isMe: boolean) => {
+    const parts = text.split(/(@\w+)/g)
+    return parts.map((part, i) => {
+      if (part.startsWith('@')) {
+        const token = part.slice(1).toLowerCase()
+        const isAgent = agents.some(a => a.name.toLowerCase().startsWith(token))
+        if (isAgent) return (
+          <span key={i} className={`font-semibold px-0.5 rounded ${isMe ? 'text-indigo-200 bg-indigo-500' : 'text-indigo-700 bg-indigo-100'}`}>
+            {part}
+          </span>
+        )
+      }
+      return <span key={i}>{part}</span>
+    })
+  }
 
   return (
     <div className="flex h-screen bg-gray-50" style={{ height: 'calc(100vh - 4rem)' }}>
@@ -342,9 +408,9 @@ export default function ChatClient({ agents, currentAgentId, currentAgentName }:
 
                       {/* Task: strike-through when done */}
                       {msg.type === 'TASK' ? (
-                        <p className={msg.taskDone ? 'line-through opacity-60' : ''}>{msg.content}</p>
+                        <p className={msg.taskDone ? 'line-through opacity-60' : ''}>{renderMsgContent(msg.content, isMe)}</p>
                       ) : (
-                        <p>{msg.content}</p>
+                        <p>{renderMsgContent(msg.content, isMe)}</p>
                       )}
 
                       {/* Reminder date */}
@@ -421,15 +487,36 @@ export default function ChatClient({ agents, currentAgentId, currentAgentName }:
               </div>
             )}
 
-            <div className="flex gap-3 items-end">
+            <div className="relative flex gap-3 items-end">
+              {/* @mention suggestions */}
+              {mentionSuggestions.length > 0 && (
+                <div className="absolute bottom-full left-0 mb-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
+                  <div className="px-3 py-1.5 text-xs text-gray-400 border-b border-gray-100">Mencionar a…</div>
+                  {mentionSuggestions.map((agent, idx) => (
+                    <button
+                      key={agent.id}
+                      onMouseDown={e => { e.preventDefault(); insertMention(agent.name) }}
+                      className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors ${idx === mentionIdx ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-gray-50 text-gray-700'}`}
+                    >
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${agentColor(agent.id)}`}>
+                        {avatarLetters(agent.name)}
+                      </div>
+                      <span className="font-medium">{agent.name}</span>
+                      <span className="text-xs text-gray-400 ml-auto">{agent.role}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <textarea
+                ref={inputRef}
                 value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
                 placeholder={
-                  msgType === 'TASK' ? 'Describe la tarea…' :
-                  msgType === 'REMINDER' ? 'Describe el recordatorio…' :
-                  'Escribe un mensaje… (Enter para enviar)'
+                  msgType === 'TASK' ? 'Describe la tarea… (usa @nombre para mencionar)' :
+                  msgType === 'REMINDER' ? 'Describe el recordatorio… (usa @nombre para mencionar)' :
+                  'Escribe un mensaje… (@ para mencionar, Enter para enviar)'
                 }
                 rows={2}
                 className="flex-1 border rounded-xl px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-300"
