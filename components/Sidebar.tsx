@@ -204,7 +204,7 @@ const adminGroup = {
     {
       href: '/admin/usuarios',
       label: 'Usuarios y Configuración',
-      badge: undefined as string | undefined,
+
       icon: (
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15a3 3 0 100-6 3 3 0 000 6z" />
@@ -215,7 +215,7 @@ const adminGroup = {
     {
       href: '/admin/actividad',
       label: 'Actividad',
-      badge: undefined as string | undefined,
+
       icon: (
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -225,7 +225,7 @@ const adminGroup = {
     {
       href: '/admin/backup',
       label: 'Backups',
-      badge: undefined as string | undefined,
+
       icon: (
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -235,7 +235,7 @@ const adminGroup = {
     {
       href: '/admin/notificaciones',
       label: 'Notificaciones',
-      badge: undefined as string | undefined,
+
       icon: (
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
@@ -306,11 +306,7 @@ export default function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
                       {item.icon}
                     </span>
                     <span className="flex-1 truncate">{item.label}</span>
-                    {item.badge && (
-                      <span className="text-[9px] font-bold bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded-full border border-blue-500/30">
-                        {item.badge}
-                      </span>
-                    )}
+
                     {isActive && (
                       <div className="w-1 h-1 rounded-full bg-blue-400 flex-shrink-0" />
                     )}
