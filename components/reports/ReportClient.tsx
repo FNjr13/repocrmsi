@@ -789,9 +789,45 @@ export default function ReportClient({ projects }: { projects: Project[] }) {
       {/* Print styles */}
       <style jsx global>{`
         @media print {
+          /* Hide UI chrome */
           .print-hidden { display: none !important; }
-          body { background: white; }
-          @page { margin: 1.5cm; }
+          body { background: white !important; margin: 0; }
+
+          /* Page setup */
+          @page { margin: 1.2cm; size: A4; }
+
+          /* Force colors to print */
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+
+          /* THE MAIN FIX: overflow-x:auto clips tables in PDF */
+          .overflow-x-auto { overflow: visible !important; width: 100% !important; }
+
+          /* Keep each section on one page where possible */
+          .bg-white.rounded-xl {
+            page-break-inside: avoid;
+            break-inside: avoid;
+            margin-bottom: 12px !important;
+          }
+
+          /* Keep table rows together */
+          table { width: 100% !important; border-collapse: collapse !important; }
+          thead { display: table-header-group; }
+          tr { page-break-inside: avoid; break-inside: avoid; }
+
+          /* Tighter text in tables for PDF */
+          table th, table td { font-size: 9.5px !important; padding: 4px 6px !important; }
+
+          /* Section headings: don't split from their content */
+          h2 { page-break-after: avoid; break-after: avoid; }
+
+          /* Grid fixes for print */
+          .grid { display: grid !important; }
+          .grid-cols-2 { grid-template-columns: 1fr 1fr !important; }
+          .grid-cols-4 { grid-template-columns: repeat(4, 1fr) !important; }
+          .grid-cols-5 { grid-template-columns: repeat(5, 1fr) !important; }
+
+          /* Remove hover effects */
+          tr:hover { background: transparent !important; }
         }
       `}</style>
     </div>

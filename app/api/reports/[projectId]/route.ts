@@ -108,7 +108,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ proj
   })
 
   // === LEADS RECIENTES CON ACTIVIDAD ===
-  const recentLeads = leadsInPeriod.slice(0, 30).map(l => ({
+  const recentLeads = leadsInPeriod.map(l => ({
     id: l.id,
     name: `${l.firstName} ${l.lastName}`,
     source: l.source,
@@ -157,7 +157,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ proj
       if (b.followUpDate) return 1
       return 0
     })
-    .slice(0, 25)
+    .slice(0, 50)
 
   return NextResponse.json({
     project: {
