@@ -299,7 +299,7 @@ export default function ReportClient({ projects }: { projects: Project[] }) {
             {/* placeholder start of old section */}
 
             {/* Report header */}
-            <div className="bg-gradient-to-r from-blue-700 to-indigo-700 rounded-2xl p-7 text-white print:rounded-none">
+            <div className="print-keep-together bg-gradient-to-r from-blue-700 to-indigo-700 rounded-2xl p-7 text-white print:rounded-none">
               <div className="flex items-start justify-between">
                 <div>
                   <div className="text-blue-200 text-sm font-medium mb-1">INFORME DE PROYECTO</div>
@@ -328,7 +328,7 @@ export default function ReportClient({ projects }: { projects: Project[] }) {
             </div>
 
             {/* Unit summary */}
-            <div className="grid grid-cols-4 gap-4">
+            <div className="print-keep-together grid grid-cols-4 gap-4">
               {[
                 { label: 'Total unidades', value: report.project.totalUnits, color: 'text-gray-900', bg: 'bg-white' },
                 { label: 'Vendidas', value: report.project.soldUnits, sub: `${Math.round((report.project.soldUnits/report.project.totalUnits)*100)}%`, color: 'text-green-600', bg: 'bg-green-50' },
@@ -344,7 +344,7 @@ export default function ReportClient({ projects }: { projects: Project[] }) {
             </div>
 
             {/* KPI summary */}
-            <div>
+            <div className="print-keep-together">
               <h2 className="text-base font-bold text-gray-900 mb-3">📈 Resumen del período</h2>
               <div className="grid grid-cols-5 gap-4">
                 {[
@@ -370,7 +370,7 @@ export default function ReportClient({ projects }: { projects: Project[] }) {
               const temps = ['HOT', 'WARM', 'NORMAL', 'COLD']
               const total = temps.reduce((s, t) => s + (report.allLeadsByTemperature[t] || 0), 0)
               return (
-                <div>
+                <div className="print-keep-together">
                   <h2 className="text-base font-bold text-gray-900 mb-3">🌡️ Temperatura de leads activos</h2>
                   <div className="grid grid-cols-4 gap-4">
                     {temps.map(t => {
@@ -801,24 +801,41 @@ export default function ReportClient({ projects }: { projects: Project[] }) {
 
           /* THE MAIN FIX: overflow-x:auto clips tables in PDF */
           .overflow-x-auto { overflow: visible !important; width: 100% !important; }
+          .overflow-hidden { overflow: visible !important; }
 
-          /* Keep each section on one page where possible */
+          /* Reset any viewport-height constraints that could clip content */
+          .min-h-screen { min-height: auto !important; height: auto !important; }
+
+          /* IMPORTANT: sections must NOT force break-inside:avoid — a table
+             taller than one page (many leads/reservations) gets clipped at
+             the page edge instead of flowing to the next page. Long sections
+             are allowed to span multiple pages; only rows are protected
+             below so no single row is ever split mid-content. */
           .bg-white.rounded-xl {
-            page-break-inside: avoid;
-            break-inside: avoid;
             margin-bottom: 12px !important;
           }
 
-          /* Keep table rows together */
-          table { width: 100% !important; border-collapse: collapse !important; }
+          /* Short, bounded-size cards CAN safely stay together */
+          .print-keep-together {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+
+          /* Tables: repeat header on every page, never split a row */
+          table { width: 100% !important; border-collapse: collapse !important; table-layout: auto; }
           thead { display: table-header-group; }
+          tfoot { display: table-footer-group; }
           tr { page-break-inside: avoid; break-inside: avoid; }
 
-          /* Tighter text in tables for PDF */
-          table th, table td { font-size: 9.5px !important; padding: 4px 6px !important; }
+          /* Tighter text in tables for PDF so wide tables fit the page width */
+          table th, table td { font-size: 9px !important; padding: 3px 5px !important; word-break: break-word; }
 
-          /* Section headings: don't split from their content */
+          /* Section headings: don't get orphaned alone at page bottom */
           h2 { page-break-after: avoid; break-after: avoid; }
+
+          /* Don't let a page break land immediately after a heading with
+             nothing following it visible — pairs with h2 rule above */
+          h1, h2, h3 { orphans: 3; widows: 3; }
 
           /* Grid fixes for print */
           .grid { display: grid !important; }

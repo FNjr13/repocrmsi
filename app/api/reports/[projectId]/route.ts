@@ -157,7 +157,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ proj
       if (b.followUpDate) return 1
       return 0
     })
-    .slice(0, 50)
 
   return NextResponse.json({
     project: {
