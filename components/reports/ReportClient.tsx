@@ -82,6 +82,7 @@ export default function ReportClient({ projects }: { projects: Project[] }) {
   const [loading, setLoading] = useState(false)
   const [editMode, setEditMode] = useState(false)
   const [capturedHtml, setCapturedHtml] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
   const printRef = useRef<HTMLDivElement>(null)
   const editRef = useRef<HTMLDivElement>(null)
 
@@ -105,8 +106,67 @@ export default function ReportClient({ projects }: { projects: Project[] }) {
     }
   }
 
-  function handleExportPDF() {
-    window.print()
+  async function handleExportPDF() {
+    const el = editMode ? editRef.current : printRef.current
+    if (!el || !report || exporting) return
+
+    setExporting(true)
+    try {
+      const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
+        import('jspdf'),
+        import('html2canvas-pro'),
+      ])
+
+      // Render the FULL element (entire scrollHeight, not just what's visible
+      // on screen) into one tall canvas. windowWidth forces a desktop-width
+      // layout even when exporting from a narrow mobile viewport, so the
+      // report doesn't render squished.
+      const canvas = await html2canvas(el, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        windowWidth: 1200,
+      })
+
+      const pdf = new jsPDF('p', 'mm', 'a4')
+      const marginMM = 10
+      const pageWidthMM = pdf.internal.pageSize.getWidth()
+      const pageHeightMM = pdf.internal.pageSize.getHeight()
+      const contentWidthMM = pageWidthMM - marginMM * 2
+      const contentHeightMM = pageHeightMM - marginMM * 2
+      const pxPerMM = canvas.width / contentWidthMM
+      const pageHeightPx = Math.floor(contentHeightMM * pxPerMM)
+
+      // Slice the tall canvas into as many A4-height chunks as needed —
+      // guarantees every pixel of content ends up on some page, no matter
+      // how long the report is.
+      let renderedPx = 0
+      let page = 0
+      while (renderedPx < canvas.height) {
+        const sliceHeightPx = Math.min(pageHeightPx, canvas.height - renderedPx)
+        const pageCanvas = document.createElement('canvas')
+        pageCanvas.width = canvas.width
+        pageCanvas.height = sliceHeightPx
+        const ctx = pageCanvas.getContext('2d')
+        if (ctx) {
+          ctx.drawImage(canvas, 0, renderedPx, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx)
+        }
+        const imgData = pageCanvas.toDataURL('image/jpeg', 0.95)
+        const imgHeightMM = sliceHeightPx / pxPerMM
+        if (page > 0) pdf.addPage()
+        pdf.addImage(imgData, 'JPEG', marginMM, marginMM, contentWidthMM, imgHeightMM)
+        renderedPx += sliceHeightPx
+        page++
+      }
+
+      const safeName = report.project.name.replace(/[^\w-]+/g, '_')
+      pdf.save(`Informe_${safeName}_${from}_a_${to}.pdf`)
+    } catch (err) {
+      console.error('Error exportando PDF:', err)
+      alert('No se pudo generar el PDF. Intenta nuevamente.')
+    } finally {
+      setExporting(false)
+    }
   }
 
   function handleStartEdit() {
@@ -155,9 +215,14 @@ export default function ReportClient({ projects }: { projects: Project[] }) {
               )}
               <button
                 onClick={handleExportPDF}
-                className="flex items-center gap-2 bg-gray-900 hover:bg-gray-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                disabled={exporting}
+                className="flex items-center gap-2 bg-gray-900 hover:bg-gray-700 disabled:bg-gray-400 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
               >
-                📄 Exportar PDF
+                {exporting ? (
+                  <><span className="animate-spin">⏳</span> Generando PDF...</>
+                ) : (
+                  <>📄 Exportar PDF</>
+                )}
               </button>
             </div>
           )}
